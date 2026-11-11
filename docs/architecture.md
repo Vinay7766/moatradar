@@ -130,6 +130,10 @@ moatradar/
 | `GET` | `/api/missions/{run_id}` | Fetch current run status, discovered competitors, events, and dossier |
 | `GET` | `/api/missions/{run_id}/events` | SSE stream of live `AgentEvent` updates + HITL interrupt signal |
 | `POST` | `/api/missions/{run_id}/approve` | Submit PM-edited competitor list & resume LangGraph from HITL |
+| `POST` | `/api/missions/{run_id}/retry` | Recover failed/stalled runs with optional `skip_competitors` & BYOK headers |
+| `GET` | `/api/workflow/spec` | Static workflow node contracts, prompt summaries, guardrails & AI concepts |
+| `GET` / `POST` / `DELETE` | `/api/workspaces/{workspace_id}/documents` | Upload/list/remove workspace `.md`/`.txt`/`.pdf` custom evidence docs |
+| `GET` / `PUT` | `/api/workspaces/{workspace_id}/monitor` | Configure recurring schedule (`off`/`daily`/`weekly`) & SSRF-checked webhook |
 | `POST` | `/api/workspaces/{workspace_id}/chat` | Ask the Desk (RAG Q&A grounded in ChromaDB + SQLite citations) |
 | `GET` | `/api/missions/{run_id}/export` | Export dossier (`format=markdown` or `format=json`) |
 
