@@ -95,9 +95,29 @@ export function RagChatPanel({
         )}
       </div>
 
-      {error && <p className="text-xs text-rose-700 mb-2">{error}</p>}
+      {!disabled && (
+        <div className="pt-2.5 flex flex-wrap gap-1.5">
+          {[
+            "Where do competitors gate pricing?",
+            "Top user complaints & switching triggers?",
+            "What changed vs previous snapshot?",
+          ].map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              disabled={isSending}
+              onClick={() => setQuestion(prompt)}
+              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-900 transition-colors disabled:opacity-50"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      {error && <p className="text-xs text-rose-700 my-2">{error}</p>}
+
+      <form onSubmit={handleSubmit} className="mt-2.5 flex gap-2">
         <input
           type="text"
           value={question}

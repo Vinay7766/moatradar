@@ -194,14 +194,60 @@ export function MissionLauncher({
             <button
               type="button"
               onClick={() => onOpenWorkflowXRay("tutor")}
-              className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
             >
-              <GraduationCap className="w-3.5 h-3.5 text-indigo-700" />
+              <GraduationCap className="w-3.5 h-3.5 text-teal-400" />
               Interactive AI Tutor &amp; Workflow X-Ray
             </button>
           )}
         </div>
       </div>
+
+      {!initialProduct && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Quick Templates:
+          </span>
+          {[
+            {
+              label: "AI Code Editors",
+              name: "CodeFlow AI",
+              desc: "Collaborative AI IDE with codebase indexing, PR review agents, and local model privacy.",
+              segment: "Mid-market & Enterprise Engineering Teams",
+              seeds: "Cursor, Windsurf, GitHub Copilot",
+            },
+            {
+              label: "Product Analytics",
+              name: "PulseMetric",
+              desc: "Self-serve funnel analytics, session replay, and automated cohort insights for SaaS PMs.",
+              segment: "Series A-C B2B SaaS Product Teams",
+              seeds: "PostHog, Mixpanel, Amplitude",
+            },
+            {
+              label: "Sales Compete Intel",
+              name: "MoatRadar",
+              desc: "Autonomous multi-agent competitive research, battlecards, and pricing diff monitoring.",
+              segment: "B2B SaaS Product Marketing & PMs",
+              seeds: "Klue, Crayon, Kompyte",
+            },
+          ].map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => {
+                setProductName(preset.name);
+                setDescription(preset.desc);
+                setSegment(preset.segment);
+                setSeedInput(preset.seeds);
+                setFormError(null);
+              }}
+              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-900 transition-colors"
+            >
+              + {preset.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!anyConfigured && (
         <div
@@ -232,9 +278,9 @@ export function MissionLauncher({
               <button
                 type="button"
                 onClick={() => onOpenWorkflowXRay("tutor")}
-                className="inline-flex items-center gap-1.5 rounded-md bg-indigo-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-800"
+                className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800"
               >
-                <GraduationCap className="w-3.5 h-3.5" />
+                <GraduationCap className="w-3.5 h-3.5 text-teal-400" />
                 Launch Zero-Key AI Tutor
               </button>
             )}

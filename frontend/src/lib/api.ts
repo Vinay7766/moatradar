@@ -76,6 +76,14 @@ export async function fetchWorkspaces(): Promise<{ workspaces: Workspace[] }> {
   return apiFetch("/api/workspaces");
 }
 
+export async function deleteWorkspace(
+  workspaceId: string
+): Promise<{ deleted: boolean; workspace_id: string }> {
+  return apiFetch(`/api/workspaces/${workspaceId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchWorkspaceSnapshots(workspaceId: string): Promise<{
   workspace: Workspace;
   snapshots: DossierSnapshot[];

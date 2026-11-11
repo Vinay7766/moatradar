@@ -1,25 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  FileText,
-  GraduationCap,
-  KeyRound,
-  Network,
-  RotateCw,
-} from "lucide-react";
 import { AgentTracePanel } from "@/components/AgentTracePanel";
 import { CustomEvidencePanel } from "@/components/CustomEvidencePanel";
 import { DossierTabs } from "@/components/DossierTabs";
 import { HitlApprovalPanel } from "@/components/HitlApprovalPanel";
 import { MissionLauncher } from "@/components/MissionLauncher";
+import { MissionProgressRibbon } from "@/components/MissionProgressRibbon";
 import { MonitorSettingsPanel } from "@/components/MonitorSettingsPanel";
 import { RagChatPanel } from "@/components/RagChatPanel";
 import { SettingsModal } from "@/components/SettingsModal";
 import { SidebarWorkspaces } from "@/components/SidebarWorkspaces";
+import { StudioHeader, StudioView } from "@/components/StudioHeader";
 import { WorkflowXRay } from "@/components/WorkflowXRay";
 import {
   approveCompetitors,
+  deleteWorkspace,
   deleteWorkspaceDocument,
   fetchChatHistory,
   fetchMission,
@@ -103,13 +99,19 @@ export default function HomePage() {
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const [mainView, setMainView] = useState<"dossier" | "xray">("dossier");
+  const [mainView, setMainView] = useState<StudioView>("desk");
   const [xrayDefaultMode, setXrayDefaultMode] = useState<"live" | "tutor">(
     "live"
   );
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(true);
+  const [showTraceLogs, setShowTraceLogs] = useState(false);
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(
+    null
+  );
+  const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(
     null
   );
   const [snapshots, setSnapshots] = useState<DossierSnapshot[]>([]);
@@ -149,6 +151,21 @@ export default function HomePage() {
     [providers, activeByokProviders]
   );
 
+  const resetActiveWorkspaceState = useCallback(() => {
+    setSelectedWorkspace(null);
+    setActiveRun(null);
+    setActiveSnapshot(null);
+    setSnapshots([]);
+    setEvents([]);
+    setCitations([]);
+    setChatMessages([]);
+    setWorkspaceDocs([]);
+    setWorkspaceMonitor(null);
+    setShowTraceLogs(false);
+    setShowLauncher(true);
+    setMainView("desk");
+  }, []);
+
   const refreshProvidersAndWorkspaces = useCallback(
     async (
       byokOverride?: ByokConfig,
@@ -156,9 +173,7 @@ export default function HomePage() {
     ) => {
       const currentByok = byokOverride ?? loadByokConfig();
       const hint =
-        providerHint ||
-        getActiveByokProviders(currentByok)[0] ||
-        "";
+        providerHint || getActiveByokProviders(currentByok)[0] || "";
       const [provData, wsData] = await Promise.all([
         fetchProviders(hint),
         fetchWorkspaces(),
@@ -240,7 +255,8 @@ export default function HomePage() {
   const loadWorkspaceDetails = useCallback(async (ws: Workspace) => {
     setSelectedWorkspace(ws);
     setShowLauncher(false);
-    setMainView("dossier");
+    setMainView("desk");
+    setShowTraceLogs(false);
     setBannerError(null);
     setIsLoadingDocs(true);
     setIsLoadingMonitor(true);
@@ -319,6 +335,29 @@ export default function HomePage() {
     };
   }, [activeRun, selectedWorkspace]);
 
+  async function handleDeleteWorkspace(workspaceId: string) {
+    setDeletingWorkspaceId(workspaceId);
+    setBannerError(null);
+    try {
+      await deleteWorkspace(workspaceId);
+      const remaining = workspaces.filter((ws) => ws.id !== workspaceId);
+      setWorkspaces(remaining);
+      if (selectedWorkspace?.id === workspaceId) {
+        if (remaining.length > 0) {
+          await loadWorkspaceDetails(remaining[0]);
+        } else {
+          resetActiveWorkspaceState();
+        }
+      }
+    } catch (err) {
+      setBannerError(
+        err instanceof Error ? err.message : "Failed to delete workspace."
+      );
+    } finally {
+      setDeletingWorkspaceId(null);
+    }
+  }
+
   async function handleLaunch(payload: {
     product_name: string;
     product_description: string;
@@ -343,7 +382,8 @@ export default function HomePage() {
       setCitations([]);
       setActiveSnapshot(null);
       setShowLauncher(false);
-      setMainView("dossier");
+      setShowTraceLogs(true);
+      setMainView("desk");
       const [wsList, docsRes, monitorRes] = await Promise.all([
         fetchWorkspaces(),
         fetchWorkspaceDocuments(res.workspace.id).catch(() => ({
@@ -495,266 +535,200 @@ export default function HomePage() {
     await refreshProvidersAndWorkspaces(cleared, "");
   }
 
-  function openWorkflowXRay(mode?: "live" | "tutor") {
-    const resolvedMode = mode ?? (activeRun ? "live" : "tutor");
-    setXrayDefaultMode(resolvedMode);
-    setMainView("xray");
+  function handleChangeView(view: StudioView, xrayMode?: "live" | "tutor") {
+    if (view === "xray") {
+      setXrayDefaultMode(xrayMode ?? (activeRun ? "live" : "tutor"));
+    }
+    setMainView(view);
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="min-h-screen flex bg-slate-50 text-slate-900">
       <SidebarWorkspaces
         workspaces={workspaces}
         selectedWorkspaceId={selectedWorkspace?.id || null}
         onSelectWorkspace={loadWorkspaceDetails}
-        onNewMission={() => {
-          setSelectedWorkspace(null);
-          setActiveRun(null);
-          setActiveSnapshot(null);
-          setSnapshots([]);
-          setEvents([]);
-          setCitations([]);
-          setChatMessages([]);
-          setWorkspaceDocs([]);
-          setWorkspaceMonitor(null);
-          setShowLauncher(true);
-          setMainView("dossier");
-        }}
+        onDeleteWorkspace={handleDeleteWorkspace}
+        deletingWorkspaceId={deletingWorkspaceId}
+        onNewMission={resetActiveWorkspaceState}
         onRefresh={loadInitialData}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenWorkflowXRay={(mode) => openWorkflowXRay(mode)}
+        onOpenWorkflowXRay={(mode) => handleChangeView("xray", mode)}
         activeView={mainView}
         byokKeyCount={activeByokProviders.length}
         hasCustomOllamaUrl={Boolean(byokConfig.ollamaBaseUrl.trim())}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
-      <main
-        className={`flex-1 p-4 md:p-6 space-y-5 w-full mx-auto print:p-0 print:max-w-none print:space-y-0 ${
-          mainView === "xray" ? "max-w-[1440px]" : "max-w-6xl"
-        }`}
-      >
-        {/* Top Workspace View Switcher */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-2 print:hidden">
-          <div
-            role="tablist"
-            aria-label="Workspace view switcher"
-            className="flex flex-wrap items-center gap-1.5"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mainView === "dossier"}
-              onClick={() => setMainView("dossier")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mainView === "dossier"
-                  ? "bg-teal-700 text-white"
-                  : "text-slate-700 hover:bg-slate-100"
-              }`}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <StudioHeader
+          selectedWorkspace={selectedWorkspace}
+          activeRun={activeRun}
+          activeView={mainView}
+          onChangeView={handleChangeView}
+          snapshots={snapshots}
+          activeSnapshot={activeSnapshot}
+          onSelectSnapshot={(snap) => void handleSelectSnapshot(snap)}
+          onTriggerRerun={() => {
+            setShowLauncher(true);
+            setMainView("desk");
+          }}
+          documentsCount={workspaceDocs.length}
+          monitor={workspaceMonitor}
+          isCopilotOpen={isCopilotOpen}
+          onToggleCopilot={() => setIsCopilotOpen((prev) => !prev)}
+          byokKeyCount={activeByokProviders.length}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+        />
+
+        <main
+          className={`flex-1 p-4 md:p-6 space-y-5 w-full mx-auto print:p-0 print:max-w-none print:space-y-0 ${
+            mainView === "xray" ? "max-w-[1440px]" : "max-w-[1400px]"
+          }`}
+        >
+          {bannerError && (
+            <div
+              role="alert"
+              className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900 print:hidden"
             >
-              <FileText className="w-3.5 h-3.5" />
-              Dossier Workbench
-            </button>
+              {bannerError}
+            </div>
+          )}
 
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mainView === "xray"}
-              onClick={() => openWorkflowXRay()}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mainView === "xray"
-                  ? "bg-indigo-700 text-white"
-                  : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-900"
-              }`}
-            >
-              <Network className="w-3.5 h-3.5" />
-              Workflow X-Ray &amp; AI Tutor
-              {activeRun && (
-                <span
-                  className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                    mainView === "xray"
-                      ? "bg-white/20 text-white"
-                      : activeRun.status === "failed"
-                        ? "bg-rose-100 text-rose-800"
-                        : activeRun.status === "completed"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-800"
-                  }`}
-                >
-                  {activeRun.status}
-                </span>
-              )}
-            </button>
-          </div>
+          {mainView === "xray" && (
+            <div className="print:hidden">
+              <WorkflowXRay
+                run={activeRun}
+                events={events}
+                productName={selectedWorkspace?.product_name}
+                onRetryMission={handleRetryMission}
+                isRetrying={isRetrying}
+                onOpenHitl={() => setMainView("desk")}
+                defaultMode={xrayDefaultMode}
+              />
+            </div>
+          )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            {mainView === "dossier" && (
-              <button
-                type="button"
-                onClick={() => openWorkflowXRay("tutor")}
-                className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-800 hover:bg-indigo-100 transition-colors"
-              >
-                <GraduationCap className="w-3.5 h-3.5" />
-                Zero-Key AI Tutor
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setIsSettingsOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-teal-700" />
-              <span>BYOK Keys</span>
-              {activeByokProviders.length > 0 && (
-                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
-                  {activeByokProviders.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
+          {mainView === "knowledge" && selectedWorkspace && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 print:hidden">
+              <CustomEvidencePanel
+                workspaceId={selectedWorkspace.id}
+                documents={workspaceDocs}
+                onUpload={handleUploadDoc}
+                onDelete={handleDeleteDoc}
+                isLoading={isLoadingDocs}
+              />
+              <MonitorSettingsPanel
+                workspaceId={selectedWorkspace.id}
+                monitor={workspaceMonitor}
+                providers={effectiveProviders}
+                defaultProvider={selectedProvider}
+                defaultModel={selectedModel}
+                onSave={handleSaveMonitor}
+                isLoading={isLoadingMonitor}
+              />
+            </div>
+          )}
 
-        {bannerError && (
-          <div
-            role="alert"
-            className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900 print:hidden"
-          >
-            {bannerError}
-          </div>
-        )}
-
-        {mainView === "xray" ? (
-          <div className="print:hidden">
-            <WorkflowXRay
-              run={activeRun}
-              events={events}
-              productName={selectedWorkspace?.product_name}
-              onRetryMission={handleRetryMission}
-              isRetrying={isRetrying}
-              onOpenHitl={() => setMainView("dossier")}
-              defaultMode={xrayDefaultMode}
-            />
-          </div>
-        ) : (
-          <>
-            {selectedWorkspace && !showLauncher && (
-              <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-                <div>
-                  <h2 className="text-base font-semibold text-slate-900">
-                    {selectedWorkspace.product_name}
-                  </h2>
-                  <p className="text-xs text-slate-600">
-                    {selectedWorkspace.target_segment}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {snapshots.length > 0 && (
-                    <select
-                      aria-label="Select snapshot version"
-                      value={activeSnapshot?.id || ""}
-                      onChange={(e) => {
-                        const found = snapshots.find(
-                          (s) => s.id === e.target.value
-                        );
-                        if (found) void handleSelectSnapshot(found);
-                      }}
-                      className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700"
-                    >
-                      {snapshots.map((s, idx) => (
-                        <option key={s.id} value={s.id}>
-                          Snapshot #{snapshots.length - idx} ·{" "}
-                          {new Date(s.created_at).toLocaleString()}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setShowLauncher(true)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-teal-700 bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800 hover:bg-teal-100 transition-colors"
-                  >
-                    <RotateCw className="w-3.5 h-3.5" />
-                    Re-run &amp; Diff Snapshot
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {showLauncher && (
-              <div className="print:hidden">
-                <MissionLauncher
-                  providers={effectiveProviders}
-                  selectedProvider={selectedProvider}
-                  selectedModel={selectedModel}
-                  onChangeProvider={(p, m) => {
-                    setSelectedProvider(p);
-                    setSelectedModel(m);
-                  }}
-                  onLaunch={handleLaunch}
-                  isSubmitting={isLaunching}
-                  initialProduct={selectedWorkspace}
-                  byokConfig={byokConfig}
-                  onOpenSettings={() => setIsSettingsOpen(true)}
-                  onOpenWorkflowXRay={(mode) => openWorkflowXRay(mode)}
+          {mainView === "desk" && (
+            <>
+              {activeRun && !showLauncher && (
+                <MissionProgressRibbon
+                  run={activeRun}
+                  eventCount={events.length}
+                  showTraceLogs={showTraceLogs}
+                  onToggleTraceLogs={() => setShowTraceLogs((prev) => !prev)}
+                  onInspectXRay={() => handleChangeView("xray", "live")}
+                  onRetryMission={
+                    activeRun.status === "failed"
+                      ? () => handleRetryMission()
+                      : undefined
+                  }
+                  isRetrying={isRetrying}
                 />
-              </div>
-            )}
+              )}
 
-            {activeRun && <AgentTracePanel run={activeRun} events={events} />}
+              {activeRun && showTraceLogs && !showLauncher && (
+                <AgentTracePanel run={activeRun} events={events} />
+              )}
 
-            {activeRun?.status === "awaiting_approval" && (
-              <HitlApprovalPanel
-                key={activeRun.id}
-                discovered={activeRun.discovered_competitors}
-                onApprove={handleApprove}
-                isApproving={isApproving}
-              />
-            )}
-
-            {activeSnapshot && activeRun && (
-              <DossierTabs
-                runId={activeSnapshot.run_id}
-                productName={selectedWorkspace?.product_name || "Market"}
-                dossier={activeSnapshot.dossier}
-                diffSummary={activeSnapshot.diff_summary}
-                citations={citations}
-                createdAt={activeSnapshot.created_at}
-              />
-            )}
-
-            {selectedWorkspace && (
-              <>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 print:hidden">
-                  <CustomEvidencePanel
-                    workspaceId={selectedWorkspace.id}
-                    documents={workspaceDocs}
-                    onUpload={handleUploadDoc}
-                    onDelete={handleDeleteDoc}
-                    isLoading={isLoadingDocs}
-                  />
-                  <MonitorSettingsPanel
-                    workspaceId={selectedWorkspace.id}
-                    monitor={workspaceMonitor}
+              {showLauncher && (
+                <div className="print:hidden">
+                  <MissionLauncher
                     providers={effectiveProviders}
-                    defaultProvider={selectedProvider}
-                    defaultModel={selectedModel}
-                    onSave={handleSaveMonitor}
-                    isLoading={isLoadingMonitor}
+                    selectedProvider={selectedProvider}
+                    selectedModel={selectedModel}
+                    onChangeProvider={(p, m) => {
+                      setSelectedProvider(p);
+                      setSelectedModel(m);
+                    }}
+                    onLaunch={handleLaunch}
+                    isSubmitting={isLaunching}
+                    initialProduct={selectedWorkspace}
+                    byokConfig={byokConfig}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
+                    onOpenWorkflowXRay={(mode) =>
+                      handleChangeView("xray", mode)
+                    }
                   />
                 </div>
+              )}
 
-                <RagChatPanel
-                  messages={chatMessages}
-                  onSend={handleSendChat}
-                  isSending={isChatting}
-                  disabled={snapshots.length === 0}
+              {activeRun?.status === "awaiting_approval" && (
+                <HitlApprovalPanel
+                  key={activeRun.id}
+                  discovered={activeRun.discovered_competitors}
+                  onApprove={handleApprove}
+                  isApproving={isApproving}
                 />
-              </>
-            )}
-          </>
-        )}
-      </main>
+              )}
+
+              {activeSnapshot && activeRun && (
+                <div
+                  className={
+                    isCopilotOpen && selectedWorkspace
+                      ? "grid grid-cols-1 xl:grid-cols-12 gap-5 items-start print:block"
+                      : "block"
+                  }
+                >
+                  <div
+                    className={
+                      isCopilotOpen && selectedWorkspace
+                        ? "xl:col-span-8 min-w-0 print:w-full"
+                        : "min-w-0"
+                    }
+                  >
+                    <DossierTabs
+                      runId={activeSnapshot.run_id}
+                      productName={selectedWorkspace?.product_name || "Market"}
+                      dossier={activeSnapshot.dossier}
+                      diffSummary={activeSnapshot.diff_summary}
+                      citations={citations}
+                      createdAt={activeSnapshot.created_at}
+                    />
+                  </div>
+
+                  {isCopilotOpen && selectedWorkspace && (
+                    <aside
+                      aria-label="Ask the Desk RAG Copilot"
+                      className="xl:col-span-4 xl:sticky xl:top-20 print:hidden"
+                    >
+                      <RagChatPanel
+                        messages={chatMessages}
+                        onSend={handleSendChat}
+                        isSending={isChatting}
+                        disabled={snapshots.length === 0}
+                      />
+                    </aside>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </main>
+      </div>
 
       <SettingsModal
         isOpen={isSettingsOpen}
