@@ -128,13 +128,22 @@ def test_workspace_mission_export_and_chat_endpoints(
     assert app_res.status_code == 200
 
     # Export Markdown & JSON
-    md_res = test_client.get(f"/api/missions/{run_id}/export?format=markdown")
+    md_res = test_client.get(
+        f"/api/missions/{run_id}/export?format=markdown",
+        headers={"Origin": "http://localhost:3000"},
+    )
     assert md_res.status_code == 200
     assert "Competitive Market Intelligence Dossier: SignalPulse" in md_res.text
+    assert f'moatradar-dossier-{run_id[:8]}.md' in md_res.headers.get("content-disposition", "")
+    assert "Content-Disposition" in md_res.headers.get("access-control-expose-headers", "")
 
-    json_res = test_client.get(f"/api/missions/{run_id}/export?format=json")
+    json_res = test_client.get(
+        f"/api/missions/{run_id}/export?format=json",
+        headers={"Origin": "http://localhost:3000"},
+    )
     assert json_res.status_code == 200
     assert json_res.json()["dossier"]["executive_brief_md"] == "## Brief\nVerified market brief."
+    assert f'moatradar-dossier-{run_id[:8]}.json' in json_res.headers.get("content-disposition", "")
 
     # RAG Chat endpoint
     async def fake_rag(*args: Any, **kwargs: Any) -> RagChatResponse:

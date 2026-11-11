@@ -243,7 +243,7 @@ def export_mission(
             ),
             media_type="application/json",
             headers={
-                "Content-Disposition": f'attachment; filename="cmi-dossier-{run_id[:8]}.json"'
+                "Content-Disposition": f'attachment; filename="moatradar-dossier-{run_id[:8]}.json"'
             },
         )
 
@@ -257,7 +257,7 @@ def export_mission(
         content=md,
         media_type="text/markdown",
         headers={
-            "Content-Disposition": f'attachment; filename="cmi-dossier-{run_id[:8]}.md"'
+            "Content-Disposition": f'attachment; filename="moatradar-dossier-{run_id[:8]}.md"'
         },
     )
 
