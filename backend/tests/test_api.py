@@ -163,6 +163,38 @@ def test_workspace_mission_export_and_chat_endpoints(
     assert "Klue" in chat_res.json()["answer"]
 
 
+def test_providers_have_no_hardcoded_defaults(
+    test_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.api.routes.settings.gemini_api_key", "")
+    monkeypatch.setattr("app.api.routes.settings.openai_api_key", "")
+    monkeypatch.setattr("app.api.routes.settings.anthropic_api_key", "")
+    monkeypatch.setattr("app.api.routes.settings.groq_api_key", "")
+    monkeypatch.setattr("app.api.routes.settings.default_llm_provider", "")
+    monkeypatch.setattr("app.api.routes.settings.default_llm_model", "")
+    monkeypatch.setattr("app.config.Settings.discover_ollama_models", lambda self: (False, []))
+
+    prov = test_client.get("/api/providers")
+    assert prov.status_code == 200
+    payload = prov.json()
+    assert payload["default_provider"] == ""
+    assert payload["default_model"] == ""
+    for item in payload["providers"]:
+        assert item["configured"] is False
+        assert item["models"] == []
+        assert item["default_model"] == ""
+
+    missing_model_launch = test_client.post(
+        "/api/missions",
+        json={
+            "product_name": "MoatRadar",
+            "product_description": "Automated PM competitive intelligence desk",
+            "target_segment": "B2B SaaS Product Managers",
+        },
+    )
+    assert missing_model_launch.status_code == 422
+
+
 def test_ollama_provider_discovery_and_mission_validation(
     test_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -178,6 +210,11 @@ def test_ollama_provider_discovery_and_mission_validation(
     assert offline_map["ollama"]["models"] == []
     assert offline_map["ollama"]["default_model"] == ""
 
+    offline_check = test_client.post("/api/providers/ollama/check", json={"model": "gemma4:12b"})
+    assert offline_check.status_code == 200
+    assert offline_check.json()["reachable"] is False
+    assert offline_check.json()["available"] is False
+
     offline_launch = test_client.post(
         "/api/missions",
         json={
@@ -185,7 +222,7 @@ def test_ollama_provider_discovery_and_mission_validation(
             "product_description": "Automated PM competitive intelligence desk",
             "target_segment": "B2B SaaS Product Managers",
             "llm_provider": "ollama",
-            "llm_model": "llama3.2",
+            "llm_model": "gemma4:12b",
         },
     )
     assert offline_launch.status_code == 400
@@ -196,14 +233,39 @@ def test_ollama_provider_discovery_and_mission_validation(
     monkeypatch.setattr(test_client.app.state.runner, "start_mission", fake_start_mission)  # type: ignore[attr-defined]
     monkeypatch.setattr(
         "app.config.Settings.discover_ollama_models",
-        lambda self: (True, ["qwen2.5:7b", "llama3.2"]),
+        lambda self: (True, ["qwen2.5:7b", "gemma4:12b"]),
     )
+
+    missing_specific = test_client.post(
+        "/api/providers/ollama/check", json={"model": "llama3.2:latest"}
+    )
+    assert missing_specific.status_code == 200
+    assert missing_specific.json()["reachable"] is True
+    assert missing_specific.json()["available"] is False
+    assert "ollama pull llama3.2:latest" in missing_specific.json()["detail"]
+
+    missing_launch = test_client.post(
+        "/api/missions",
+        json={
+            "product_name": "SignalPulse",
+            "product_description": "Automated PM competitive intelligence desk",
+            "target_segment": "B2B SaaS Product Managers",
+            "llm_provider": "ollama",
+            "llm_model": "llama3.2:latest",
+        },
+    )
+    assert missing_launch.status_code == 400
+
+    ok_check = test_client.post("/api/providers/ollama/check", json={"model": "gemma4:12b"})
+    assert ok_check.status_code == 200
+    assert ok_check.json()["reachable"] is True
+    assert ok_check.json()["available"] is True
+
     online_prov = test_client.get("/api/providers")
     assert online_prov.status_code == 200
     online_map = {p["provider"]: p for p in online_prov.json()["providers"]}
     assert online_map["ollama"]["configured"] is True
-    assert online_map["ollama"]["models"] == ["qwen2.5:7b", "llama3.2"]
-    assert online_map["ollama"]["default_model"] == "qwen2.5:7b"
+    assert online_map["ollama"]["models"] == ["qwen2.5:7b", "gemma4:12b"]
 
     ok_launch = test_client.post(
         "/api/missions",
@@ -212,7 +274,7 @@ def test_ollama_provider_discovery_and_mission_validation(
             "product_description": "Automated PM competitive intelligence desk",
             "target_segment": "B2B SaaS Product Managers",
             "llm_provider": "ollama",
-            "llm_model": "qwen2.5:7b",
+            "llm_model": "gemma4:12b",
         },
     )
     assert ok_launch.status_code == 202
