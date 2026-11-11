@@ -14,7 +14,7 @@ import {
   Tag,
   TrendingUp,
 } from "lucide-react";
-import { getExportUrl } from "@/lib/api";
+import { downloadDossierExport } from "@/lib/api";
 import { safeHttpUrl } from "@/lib/url";
 import {
   DiffSummary,
@@ -62,6 +62,10 @@ export function DossierTabs({
 }: DossierTabsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("brief");
   const [vocFilter, setVocFilter] = useState<string>("all");
+  const [downloadingFormat, setDownloadingFormat] = useState<
+    "markdown" | "json" | null
+  >(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const featureCompetitors = Array.from(
     new Set(
@@ -71,17 +75,29 @@ export function DossierTabs({
     )
   );
 
-  const filteredVoc =
-    vocFilter === "all"
-      ? dossier.voc_insights
-      : dossier.voc_insights.filter((v) => v.sentiment === vocFilter);
+  const panelClass = (isActive: boolean) =>
+    isActive ? "block print:block" : "hidden print:block";
+
+  async function handleExport(format: "markdown" | "json") {
+    setDownloadingFormat(format);
+    setExportError(null);
+    try {
+      await downloadDossierExport(runId, format);
+    } catch (err) {
+      setExportError(
+        err instanceof Error ? err.message : "Failed to download dossier export."
+      );
+    } finally {
+      setDownloadingFormat(null);
+    }
+  }
 
   return (
-    <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+    <section className="bg-white border border-slate-200 rounded-lg overflow-hidden print:border-0 print:rounded-none print:overflow-visible">
       {/* Header + Export Actions */}
-      <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+      <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 print:bg-white print:px-0">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">
+          <h2 className="text-base font-semibold text-slate-900 print:text-xl">
             {productName} — Competitive Dossier
           </h2>
           <p className="text-xs text-slate-500">
@@ -91,20 +107,24 @@ export function DossierTabs({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 print:hidden">
-          <a
-            href={getExportUrl(runId, "markdown")}
-            className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          <button
+            type="button"
+            disabled={downloadingFormat !== null}
+            onClick={() => void handleExport("markdown")}
+            className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
-            Markdown
-          </a>
-          <a
-            href={getExportUrl(runId, "json")}
-            className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            {downloadingFormat === "markdown" ? "Downloading..." : "Markdown"}
+          </button>
+          <button
+            type="button"
+            disabled={downloadingFormat !== null}
+            onClick={() => void handleExport("json")}
+            className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             <FileJson className="w-3.5 h-3.5" />
-            JSON
-          </a>
+            {downloadingFormat === "json" ? "Downloading..." : "JSON"}
+          </button>
           <button
             type="button"
             onClick={() => window.print()}
@@ -115,6 +135,15 @@ export function DossierTabs({
           </button>
         </div>
       </div>
+
+      {exportError && (
+        <div
+          role="alert"
+          className="mx-4 mt-3 rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900 print:hidden"
+        >
+          {exportError}
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div
@@ -145,8 +174,11 @@ export function DossierTabs({
       </div>
 
       {/* Tab Content */}
-      <div className="p-5">
-        {activeTab === "brief" && (
+      <div className="p-5 print:p-0 print:pt-4 print:space-y-8">
+        <div className={panelClass(activeTab === "brief")}>
+          <h3 className="hidden print:block text-base font-bold text-slate-900 border-b border-slate-200 pb-1 mb-3">
+            1. Executive Brief
+          </h3>
           <div className="space-y-5">
             {diffSummary && diffSummary.has_changes && (
               <div className="rounded-md border border-teal-200 bg-teal-50/60 p-3 text-xs text-teal-900">
@@ -168,10 +200,13 @@ export function DossierTabs({
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {activeTab === "features" && (
-          <div className="overflow-x-auto">
+        <div className={panelClass(activeTab === "features")}>
+          <h3 className="hidden print:block text-base font-bold text-slate-900 border-b border-slate-200 pb-1 mb-3">
+            2. Feature Comparison Matrix
+          </h3>
+          <div className="overflow-x-auto print:overflow-visible">
             {dossier.feature_matrix.length === 0 ? (
               <p className="text-sm text-slate-500">No feature matrix rows generated.</p>
             ) : (
@@ -240,10 +275,13 @@ export function DossierTabs({
               </table>
             )}
           </div>
-        )}
+        </div>
 
-        {activeTab === "pricing" && (
-          <div className="overflow-x-auto">
+        <div className={panelClass(activeTab === "pricing")}>
+          <h3 className="hidden print:block text-base font-bold text-slate-900 border-b border-slate-200 pb-1 mb-3">
+            3. Pricing &amp; Packaging
+          </h3>
+          <div className="overflow-x-auto print:overflow-visible">
             {dossier.pricing_matrix.length === 0 ? (
               <p className="text-sm text-slate-500">No pricing entries captured.</p>
             ) : (
@@ -289,9 +327,12 @@ export function DossierTabs({
               </table>
             )}
           </div>
-        )}
+        </div>
 
-        {activeTab === "battlecards" && (
+        <div className={panelClass(activeTab === "battlecards")}>
+          <h3 className="hidden print:block text-base font-bold text-slate-900 border-b border-slate-200 pb-1 mb-3">
+            4. Battlecards &amp; SWOT
+          </h3>
           <div className="space-y-5">
             {dossier.battlecards.map((bc, idx) => (
               <div
@@ -357,11 +398,14 @@ export function DossierTabs({
               </div>
             ))}
           </div>
-        )}
+        </div>
 
-        {activeTab === "voc" && (
+        <div className={panelClass(activeTab === "voc")}>
+          <h3 className="hidden print:block text-base font-bold text-slate-900 border-b border-slate-200 pb-1 mb-3">
+            5. Voice of Customer
+          </h3>
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
               {["all", "complaint", "praise", "switching_trigger"].map((f) => (
                 <button
                   key={f}
@@ -379,11 +423,16 @@ export function DossierTabs({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {filteredVoc.map((v, idx) => (
-                <div
-                  key={idx}
-                  className="border border-slate-200 rounded-md p-3.5 text-xs space-y-2"
-                >
+              {dossier.voc_insights.map((v, idx) => {
+                const matchesFilter =
+                  vocFilter === "all" || v.sentiment === vocFilter;
+                return (
+                  <div
+                    key={idx}
+                    className={`border border-slate-200 rounded-md p-3.5 text-xs space-y-2 ${
+                      matchesFilter ? "" : "hidden print:block"
+                    }`}
+                  >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-slate-900">
                       {v.competitor_name} · {v.theme}
@@ -416,15 +465,21 @@ export function DossierTabs({
                       </a>
                     )}
                   </div>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+        </div>
 
-        {activeTab === "opportunities" && (
+        <div className={panelClass(activeTab === "opportunities")}>
+          <h3 className="hidden print:block text-base font-bold text-slate-900 border-b border-slate-200 pb-1 mb-3">
+            6. Opportunities &amp; Momentum
+          </h3>
           <div className="space-y-5">
-            <OpportunityChart opportunities={dossier.opportunities} />
+            <div className="print:hidden">
+              <OpportunityChart opportunities={dossier.opportunities} />
+            </div>
 
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-slate-900">
@@ -498,9 +553,12 @@ export function DossierTabs({
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {activeTab === "diff_sources" && (
+        <div className={panelClass(activeTab === "diff_sources")}>
+          <h3 className="hidden print:block text-base font-bold text-slate-900 border-b border-slate-200 pb-1 mb-3">
+            7. Snapshot Diff &amp; Verified Sources
+          </h3>
           <div className="space-y-6">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 mb-2">
@@ -540,7 +598,7 @@ export function DossierTabs({
               <h3 className="text-sm font-semibold text-slate-900 mb-2">
                 Verified External Evidence ({citations.length})
               </h3>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-md max-h-96 overflow-y-auto">
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-md max-h-96 overflow-y-auto print:max-h-none print:overflow-visible">
                 {citations.map((c) => (
                   <div key={c.id} className="p-3 text-xs space-y-1">
                     <div className="flex items-center justify-between gap-2">
@@ -566,7 +624,7 @@ export function DossierTabs({
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </section>
   );

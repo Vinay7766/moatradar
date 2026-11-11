@@ -39,7 +39,7 @@ export function RagChatPanel({
   }
 
   return (
-    <section className="bg-white border border-slate-200 rounded-lg p-4 flex flex-col">
+    <section className="bg-white border border-slate-200 rounded-lg p-4 flex flex-col print:hidden">
       <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
         <MessageSquare className="w-4 h-4 text-teal-700" />
         <div>

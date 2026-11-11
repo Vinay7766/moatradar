@@ -30,7 +30,7 @@ export function AgentTracePanel({ run, events }: AgentTracePanelProps) {
   );
 
   return (
-    <section className="bg-white border border-slate-200 rounded-lg p-4">
+    <section className="bg-white border border-slate-200 rounded-lg p-4 print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <span

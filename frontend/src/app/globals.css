@@ -17,6 +17,10 @@ body {
   color: var(--foreground);
 }
 
+@page {
+  margin: 14mm;
+}
+
 @media print {
   aside,
   .print\:hidden {

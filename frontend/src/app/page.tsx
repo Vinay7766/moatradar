@@ -297,11 +297,11 @@ export default function HomePage() {
         onRefresh={loadInitialData}
       />
 
-      <main className="flex-1 p-4 md:p-6 space-y-5 max-w-6xl w-full mx-auto">
+      <main className="flex-1 p-4 md:p-6 space-y-5 max-w-6xl w-full mx-auto print:p-0 print:max-w-none print:space-y-0">
         {bannerError && (
           <div
             role="alert"
-            className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900"
+            className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900 print:hidden"
           >
             {bannerError}
           </div>
@@ -351,18 +351,20 @@ export default function HomePage() {
         )}
 
         {showLauncher && (
-          <MissionLauncher
-            providers={providers}
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
-            onChangeProvider={(p, m) => {
-              setSelectedProvider(p);
-              setSelectedModel(m);
-            }}
-            onLaunch={handleLaunch}
-            isSubmitting={isLaunching}
-            initialProduct={selectedWorkspace}
-          />
+          <div className="print:hidden">
+            <MissionLauncher
+              providers={providers}
+              selectedProvider={selectedProvider}
+              selectedModel={selectedModel}
+              onChangeProvider={(p, m) => {
+                setSelectedProvider(p);
+                setSelectedModel(m);
+              }}
+              onLaunch={handleLaunch}
+              isSubmitting={isLaunching}
+              initialProduct={selectedWorkspace}
+            />
+          </div>
         )}
 
         {activeRun && <AgentTracePanel run={activeRun} events={events} />}

@@ -59,7 +59,7 @@ export function HitlApprovalPanel({
   }
 
   return (
-    <section className="bg-amber-50/70 border border-amber-300 rounded-lg p-5">
+    <section className="bg-amber-50/70 border border-amber-300 rounded-lg p-5 print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-amber-200">
         <div className="flex items-center gap-2.5">
           <ShieldCheck className="w-5 h-5 text-amber-700" />
