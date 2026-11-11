@@ -444,6 +444,26 @@ def list_workspace_snapshots(workspace_id: str, request: Request) -> dict[str, A
     return {"workspace": ws, "snapshots": snapshots}
 
 
+@router.delete("/workspaces/{workspace_id}")
+def delete_workspace(workspace_id: str, request: Request) -> dict[str, Any]:
+    db = _get_db(request)
+    runner = _get_runner(request)
+    vector_store = _get_vs(request)
+
+    deleted_run_ids = db.delete_workspace(workspace_id)
+    if deleted_run_ids is None:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+
+    runner.cancel_workspace_runs(deleted_run_ids)
+    vectors_deleted = vector_store.delete_workspace_vectors(workspace_id)
+    return {
+        "deleted": True,
+        "workspace_id": workspace_id,
+        "runs_cancelled": len(deleted_run_ids),
+        "vectors_deleted": vectors_deleted,
+    }
+
+
 @router.post("/missions", status_code=202)
 async def start_mission(
     payload: MissionStartRequest,

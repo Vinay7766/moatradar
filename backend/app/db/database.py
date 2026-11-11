@@ -173,6 +173,21 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def delete_workspace(self, workspace_id: str) -> list[str] | None:
+        """Delete a workspace (cascading SQLite runs/snapshots/docs/monitors) and return its run IDs."""
+        with self._connect() as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM workspaces WHERE id = ?", (workspace_id,)
+            ).fetchone()
+            if not exists:
+                return None
+            run_rows = conn.execute(
+                "SELECT id FROM mission_runs WHERE workspace_id = ?", (workspace_id,)
+            ).fetchall()
+            run_ids = [str(r["id"]) for r in run_rows]
+            conn.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
+            return run_ids
+
     def create_run(
         self,
         workspace_id: str,

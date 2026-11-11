@@ -319,6 +319,16 @@ class MissionRunner:
         finally:
             self._subscribers[run_id].discard(queue)
 
+    def cancel_workspace_runs(self, run_ids: list[str]) -> None:
+        """Cancel any active tasks and clean up in-memory state for deleted workspace runs."""
+        for run_id in run_ids:
+            task = self._tasks.pop(run_id, None)
+            if task and not task.done():
+                task.cancel()
+            self._last_node.pop(run_id, None)
+            self._last_competitor.pop(run_id, None)
+            clear_runtime_settings(run_id)
+
     async def shutdown(self) -> None:
         """Cancel any active background mission tasks on app shutdown."""
         for run_id, task in list(self._tasks.items()):

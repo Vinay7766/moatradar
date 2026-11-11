@@ -158,6 +158,14 @@ class DossierVectorStore:
         if to_delete:
             self.collection.delete(ids=to_delete)
 
+    def delete_workspace_vectors(self, workspace_id: str) -> int:
+        """Remove all vector chunks (dossier + custom uploads) belonging to a workspace."""
+        res = self.collection.get(where={"workspace_id": workspace_id})
+        raw_ids = [str(item_id) for item_id in (res.get("ids") or [])]
+        if raw_ids:
+            self.collection.delete(ids=raw_ids)
+        return len(raw_ids)
+
     def query_custom_documents(
         self, workspace_id: str, query: str | None = None, top_k: int = 8
     ) -> list[dict[str, Any]]:

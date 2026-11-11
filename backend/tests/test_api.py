@@ -463,3 +463,54 @@ def test_custom_document_upload_list_and_delete(test_client: TestClient) -> None
     assert del_res.status_code == 200
     assert test_client.get(f"/api/workspaces/{ws_id}/documents").json()["documents"] == []
     assert vs.query_workspace(ws_id, "annual lock-in pricing", top_k=3) == []
+
+
+def test_delete_workspace_cascades_db_and_vectors(test_client: TestClient) -> None:
+    ws_res = test_client.post(
+        "/api/workspaces",
+        json={
+            "name": "Temp Workspace",
+            "product_name": "TempRadar",
+            "product_description": "Temporary competitive research workspace",
+            "target_segment": "B2B SaaS",
+        },
+    )
+    assert ws_res.status_code == 201
+    ws_id = ws_res.json()["workspace"]["id"]
+
+    # Seed a custom document + ChromaDB vectors + monitor config
+    up_res = test_client.post(
+        f"/api/workspaces/{ws_id}/documents",
+        files={
+            "file": (
+                "notes.md",
+                b"# Notes\nCompetitor A charges per seat.",
+                "text/markdown",
+            )
+        },
+    )
+    assert up_res.status_code == 201
+
+    mon_res = test_client.put(
+        f"/api/workspaces/{ws_id}/monitor",
+        json={"interval": "weekly", "llm_provider": "ollama", "llm_model": "gemma4:12b"},
+    )
+    assert mon_res.status_code == 200
+
+    vs = test_client.app.state.vector_store  # type: ignore[attr-defined]
+    assert len(vs.query_workspace(ws_id, "charges per seat", top_k=3)) >= 1
+
+    # Delete workspace -> cascades SQLite & clears ChromaDB vectors
+    del_res = test_client.delete(f"/api/workspaces/{ws_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["deleted"] is True
+    assert del_res.json()["workspace_id"] == ws_id
+
+    remaining_ids = [w["id"] for w in test_client.get("/api/workspaces").json()["workspaces"]]
+    assert ws_id not in remaining_ids
+    assert test_client.get(f"/api/workspaces/{ws_id}/snapshots").status_code == 404
+    assert test_client.get(f"/api/workspaces/{ws_id}/documents").status_code == 404
+    assert vs.query_workspace(ws_id, "charges per seat", top_k=3) == []
+
+    # Deleting again returns 404
+    assert test_client.delete(f"/api/workspaces/{ws_id}").status_code == 404
