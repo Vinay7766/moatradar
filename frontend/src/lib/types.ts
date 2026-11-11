@@ -146,7 +146,13 @@ export interface SourceCitation {
   id: string;
   run_id: string;
   competitor_name: string;
-  source_type: "web" | "pricing_page" | "hn" | "reddit" | "github";
+  source_type:
+    | "web"
+    | "pricing_page"
+    | "hn"
+    | "reddit"
+    | "github"
+    | "custom_upload";
   title: string;
   url: string;
   snippet: string;
@@ -210,4 +216,33 @@ export interface ChatMessage {
   content: string;
   citations: RagCitation[];
   created_at: string;
+}
+
+export type MonitorInterval = "off" | "daily" | "weekly";
+
+export interface CustomDocument {
+  id: string;
+  workspace_id: string;
+  filename: string;
+  content_type: string;
+  char_count: number;
+  content_excerpt: string;
+  uploaded_at: string;
+}
+
+export interface WorkspaceMonitor {
+  workspace_id: string;
+  interval: MonitorInterval;
+  webhook_url: string | null;
+  llm_provider: SupportedProvider | "" | null;
+  llm_model: string | null;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  last_status: string | null;
+  last_diff_headline: string | null;
+}
+
+export interface ByokConfig {
+  apiKeys: Partial<Record<SupportedProvider, string>>;
+  ollamaBaseUrl: string;
 }

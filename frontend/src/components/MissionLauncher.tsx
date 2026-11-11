@@ -4,13 +4,17 @@ import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  GraduationCap,
+  KeyRound,
   Loader2,
   Play,
   Sparkles,
   XCircle,
 } from "lucide-react";
 import { checkOllamaModel } from "@/lib/api";
+import { getActiveByokProviders } from "@/lib/byokStorage";
 import {
+  ByokConfig,
   OllamaCheckResult,
   ProviderInfo,
   SupportedProvider,
@@ -33,6 +37,9 @@ interface MissionLauncherProps {
     product_description: string;
     target_segment: string;
   } | null;
+  byokConfig?: ByokConfig;
+  onOpenSettings?: () => void;
+  onOpenWorkflowXRay?: (mode: "live" | "tutor") => void;
 }
 
 export function MissionLauncher({
@@ -43,6 +50,9 @@ export function MissionLauncher({
   onLaunch,
   isSubmitting,
   initialProduct,
+  byokConfig,
+  onOpenSettings,
+  onOpenWorkflowXRay,
 }: MissionLauncherProps) {
   const [productName, setProductName] = useState(
     initialProduct?.product_name || ""
@@ -56,10 +66,19 @@ export function MissionLauncher({
   const [checkingOllama, setCheckingOllama] = useState(false);
   const [ollamaCheck, setOllamaCheck] = useState<OllamaCheckResult | null>(null);
 
+  const activeByokProviders = byokConfig ? getActiveByokProviders(byokConfig) : [];
+  const hasCustomOllama = Boolean(byokConfig?.ollamaBaseUrl?.trim());
   const activeProviderMeta = providers.find(
     (p) => p.provider === selectedProvider
   );
-  const anyConfigured = providers.some((p) => p.configured);
+  const selectedProviderReady = Boolean(
+    activeProviderMeta?.configured ||
+      (selectedProvider &&
+        selectedProvider !== "ollama" &&
+        activeByokProviders.includes(selectedProvider))
+  );
+  const anyConfigured =
+    providers.some((p) => p.configured) || activeByokProviders.length > 0;
 
   async function verifyOllama(modelToCheck: string): Promise<OllamaCheckResult | null> {
     const trimmed = modelToCheck.trim();
@@ -152,19 +171,73 @@ export function MissionLauncher({
             Agents run live zero-key web, pricing, Hacker News, Reddit, and GitHub searches with Critic verification.
           </p>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 transition-colors"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-teal-700" />
+              <span>Settings (BYOK Keys)</span>
+              {(activeByokProviders.length > 0 || hasCustomOllama) && (
+                <span className="ml-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                  {activeByokProviders.length > 0
+                    ? `${activeByokProviders.length} key${activeByokProviders.length > 1 ? "s" : ""}`
+                    : "Ollama"}
+                </span>
+              )}
+            </button>
+          )}
+          {onOpenWorkflowXRay && (
+            <button
+              type="button"
+              onClick={() => onOpenWorkflowXRay("tutor")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 transition-colors"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-indigo-700" />
+              Interactive AI Tutor &amp; Workflow X-Ray
+            </button>
+          )}
+        </div>
       </div>
 
       {!anyConfigured && (
         <div
           role="alert"
-          className="mt-4 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+          className="mt-4 flex flex-wrap items-start justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
         >
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
-          <div>
-            <p className="font-medium">No LLM provider ready</p>
-            <p className="text-xs text-amber-800 mt-0.5">
-              Set a key in <code>.env</code> (<code>GEMINI_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, or <code>GROQ_API_KEY</code>) or start local Ollama (<code>ollama serve</code> + <code>ollama pull &lt;model&gt;</code>) and refresh.
-            </p>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
+            <div>
+              <p className="font-medium">No LLM provider ready</p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Add your own browser key in <strong>Settings (BYOK Keys)</strong>, set a key in <code>.env</code>, or start local Ollama (<code>ollama serve</code>). No key yet? Try the zero-key Interactive AI Tutor.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-400 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                Add Browser Key
+              </button>
+            )}
+            {onOpenWorkflowXRay && (
+              <button
+                type="button"
+                onClick={() => onOpenWorkflowXRay("tutor")}
+                className="inline-flex items-center gap-1.5 rounded-md bg-indigo-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-800"
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                Launch Zero-Key AI Tutor
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -260,16 +333,22 @@ export function MissionLauncher({
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
             >
               <option value="">Select provider...</option>
-              {providers.map((p) => (
-                <option key={p.provider} value={p.provider}>
-                  {p.provider.toUpperCase()}{" "}
-                  {p.configured
-                    ? "(Ready)"
-                    : p.provider === "ollama"
-                      ? "(Server offline)"
-                      : "(Key missing)"}
-                </option>
-              ))}
+              {providers.map((p) => {
+                const hasByok = activeByokProviders.includes(p.provider);
+                const ready = p.configured || hasByok;
+                return (
+                  <option key={p.provider} value={p.provider}>
+                    {p.provider.toUpperCase()}{" "}
+                    {ready
+                      ? hasByok
+                        ? "(Ready · BYOK)"
+                        : "(Ready)"
+                      : p.provider === "ollama"
+                        ? "(Server offline)"
+                        : "(Key missing)"}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -351,7 +430,7 @@ export function MissionLauncher({
             disabled={
               isSubmitting ||
               checkingOllama ||
-              !activeProviderMeta?.configured ||
+              !selectedProviderReady ||
               !selectedModel.trim()
             }
             className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

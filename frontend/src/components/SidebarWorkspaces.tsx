@@ -1,6 +1,12 @@
 "use client";
 
-import { FolderKanban, Plus, RefreshCw } from "lucide-react";
+import {
+  FolderKanban,
+  GraduationCap,
+  KeyRound,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import { Workspace } from "@/lib/types";
 
 interface SidebarWorkspacesProps {
@@ -9,6 +15,11 @@ interface SidebarWorkspacesProps {
   onSelectWorkspace: (workspace: Workspace) => void;
   onNewMission: () => void;
   onRefresh: () => void;
+  onOpenSettings?: () => void;
+  onOpenWorkflowXRay?: (mode: "live" | "tutor") => void;
+  activeView?: "dossier" | "xray";
+  byokKeyCount?: number;
+  hasCustomOllamaUrl?: boolean;
 }
 
 export function SidebarWorkspaces({
@@ -17,6 +28,11 @@ export function SidebarWorkspaces({
   onSelectWorkspace,
   onNewMission,
   onRefresh,
+  onOpenSettings,
+  onOpenWorkflowXRay,
+  activeView = "dossier",
+  byokKeyCount = 0,
+  hasCustomOllamaUrl = false,
 }: SidebarWorkspacesProps) {
   return (
     <aside className="w-full lg:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-white flex flex-col">
@@ -39,7 +55,7 @@ export function SidebarWorkspaces({
         </button>
       </div>
 
-      <div className="p-3 border-b border-slate-100">
+      <div className="p-3 border-b border-slate-100 space-y-2">
         <button
           type="button"
           onClick={onNewMission}
@@ -48,6 +64,26 @@ export function SidebarWorkspaces({
           <Plus className="w-4 h-4" />
           New Intelligence Mission
         </button>
+
+        {onOpenWorkflowXRay && (
+          <button
+            type="button"
+            onClick={() => onOpenWorkflowXRay("tutor")}
+            className={`w-full flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition-colors ${
+              activeView === "xray"
+                ? "border-indigo-400 bg-indigo-50 text-indigo-900"
+                : "border-indigo-200 bg-indigo-50/70 text-indigo-800 hover:bg-indigo-100"
+            }`}
+          >
+            <span className="flex items-center gap-1.5 truncate">
+              <GraduationCap className="w-4 h-4 shrink-0 text-indigo-700" />
+              <span className="truncate">Interactive AI Tutor &amp; X-Ray</span>
+            </span>
+            <span className="shrink-0 rounded bg-indigo-200/70 px-1.5 py-0.5 text-[10px] font-bold text-indigo-900">
+              3D
+            </span>
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1 max-h-64 lg:max-h-none">
@@ -92,6 +128,34 @@ export function SidebarWorkspaces({
           })
         )}
       </div>
+
+      {onOpenSettings && (
+        <div className="p-3 border-t border-slate-200 bg-slate-50/70">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="w-full flex items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <KeyRound className="w-3.5 h-3.5 text-teal-700" />
+              Settings (BYOK Keys)
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                byokKeyCount > 0 || hasCustomOllamaUrl
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {byokKeyCount > 0
+                ? `${byokKeyCount} active`
+                : hasCustomOllamaUrl
+                  ? "Ollama URL"
+                  : "0 keys"}
+            </span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

@@ -1,26 +1,40 @@
 import {
+  getActiveByokProviders,
+  getByokHeaders,
+  loadByokConfig,
+} from "./byokStorage";
+import {
   AgentEvent,
   ChatMessage,
   CompetitorCandidate,
+  CustomDocument,
   DossierSnapshot,
   MissionRun,
+  MonitorInterval,
   OllamaCheckResult,
   ProviderInfo,
   RagCitation,
   SourceCitation,
   SupportedProvider,
   Workspace,
+  WorkspaceMonitor,
 } from "./types";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
+  const headers: Record<string, string> = isFormData
+    ? {}
+    : { "Content-Type": "application/json" };
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
+      ...headers,
+      ...(init?.headers as Record<string, string> | undefined),
     },
   });
   if (!res.ok) {
@@ -36,17 +50,24 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchProviders(): Promise<{
+export async function fetchProviders(
+  provider?: SupportedProvider | ""
+): Promise<{
   default_provider: SupportedProvider | "";
   default_model: string;
   providers: ProviderInfo[];
 }> {
-  return apiFetch("/api/providers");
+  const activeProvider =
+    provider || getActiveByokProviders(loadByokConfig())[0] || "";
+  return apiFetch("/api/providers", {
+    headers: getByokHeaders(activeProvider),
+  });
 }
 
 export async function checkOllamaModel(model: string): Promise<OllamaCheckResult> {
   return apiFetch("/api/providers/ollama/check", {
     method: "POST",
+    headers: getByokHeaders("ollama"),
     body: JSON.stringify({ model }),
   });
 }
@@ -73,7 +94,29 @@ export async function startMission(payload: {
 }): Promise<{ workspace: Workspace; run: MissionRun }> {
   return apiFetch("/api/missions", {
     method: "POST",
+    headers: getByokHeaders(payload.llm_provider),
     body: JSON.stringify(payload),
+  });
+}
+
+export async function retryMission(
+  runId: string,
+  opts?: {
+    skipCompetitors?: string[];
+    llmProvider?: SupportedProvider;
+    llmModel?: string;
+  }
+): Promise<{ status?: string; run_id?: string; run?: MissionRun }> {
+  const activeProvider =
+    opts?.llmProvider || getActiveByokProviders(loadByokConfig())[0];
+  return apiFetch(`/api/missions/${runId}/retry`, {
+    method: "POST",
+    headers: getByokHeaders(activeProvider),
+    body: JSON.stringify({
+      skip_competitors: opts?.skipCompetitors ?? [],
+      ...(opts?.llmProvider ? { llm_provider: opts.llmProvider } : {}),
+      ...(opts?.llmModel ? { llm_model: opts.llmModel } : {}),
+    }),
   });
 }
 
@@ -88,10 +131,14 @@ export async function fetchMission(runId: string): Promise<{
 
 export async function approveCompetitors(
   runId: string,
-  competitors: CompetitorCandidate[]
+  competitors: CompetitorCandidate[],
+  provider?: SupportedProvider | ""
 ): Promise<{ status: string; run_id: string; approved_count: number }> {
+  const activeProvider =
+    provider || getActiveByokProviders(loadByokConfig())[0];
   return apiFetch(`/api/missions/${runId}/approve`, {
     method: "POST",
+    headers: getByokHeaders(activeProvider),
     body: JSON.stringify({ competitors }),
   });
 }
@@ -188,6 +235,77 @@ export async function sendWorkspaceChat(
 }> {
   return apiFetch(`/api/workspaces/${workspaceId}/chat`, {
     method: "POST",
+    headers: getByokHeaders(payload.llm_provider),
     body: JSON.stringify(payload),
   });
+}
+
+export async function fetchWorkspaceDocuments(
+  wsId: string
+): Promise<{ documents: CustomDocument[] }> {
+  const data = await apiFetch<{ documents?: CustomDocument[] }>(
+    `/api/workspaces/${wsId}/documents`
+  );
+  return { documents: data.documents ?? [] };
+}
+
+export async function uploadWorkspaceDocument(
+  wsId: string,
+  file: File
+): Promise<{ document: CustomDocument }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const data = await apiFetch<{ document?: CustomDocument } | CustomDocument>(
+    `/api/workspaces/${wsId}/documents`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+  if ("document" in data && data.document) {
+    return { document: data.document };
+  }
+  return { document: data as CustomDocument };
+}
+
+export async function deleteWorkspaceDocument(
+  wsId: string,
+  docId: string
+): Promise<{ deleted?: boolean; status?: string }> {
+  return apiFetch(`/api/workspaces/${wsId}/documents/${docId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchWorkspaceMonitor(
+  wsId: string
+): Promise<WorkspaceMonitor> {
+  const data = await apiFetch<
+    { monitor?: WorkspaceMonitor } | WorkspaceMonitor
+  >(`/api/workspaces/${wsId}/monitor`);
+  if ("monitor" in data && data.monitor) {
+    return data.monitor;
+  }
+  return data as WorkspaceMonitor;
+}
+
+export async function updateWorkspaceMonitor(
+  wsId: string,
+  payload: {
+    interval: MonitorInterval;
+    webhook_url?: string | null;
+    llm_provider?: SupportedProvider | "" | null;
+    llm_model?: string | null;
+  }
+): Promise<WorkspaceMonitor> {
+  const data = await apiFetch<
+    { monitor?: WorkspaceMonitor } | WorkspaceMonitor
+  >(`/api/workspaces/${wsId}/monitor`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  if ("monitor" in data && data.monitor) {
+    return data.monitor;
+  }
+  return data as WorkspaceMonitor;
 }
