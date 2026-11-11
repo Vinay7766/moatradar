@@ -5,6 +5,7 @@ import logging
 
 from app.schemas.intelligence import SourceCitationInput
 from app.tools.community import search_github_repos, search_hacker_news, search_reddit
+from app.tools.pricing_playwright import fetch_pricing_page_playwright
 from app.tools.security import UnsafeUrlError
 from app.tools.web_scraper import fetch_clean_page
 from app.tools.web_search import async_search_web
@@ -101,7 +102,15 @@ async def collect_competitor_evidence(
     async def _safe_scrape(target_url: str, source_type: str) -> SourceCitationInput | None:
         try:
             page = await fetch_clean_page(target_url)
-            if page is None:
+            if source_type == "pricing_page" and (
+                page is None or len(page.content) < 200
+            ):
+                pw_page = await fetch_pricing_page_playwright(target_url)
+                if pw_page is not None and (
+                    page is None or len(pw_page.content) >= len(page.content)
+                ):
+                    page = pw_page
+            if page is None or not page.content:
                 return None
             return SourceCitationInput(
                 competitor_name=competitor_name,

@@ -10,7 +10,7 @@ import respx
 from app.tools.community import search_github_repos, search_hacker_news, search_reddit
 from app.tools.registry import collect_competitor_evidence
 from app.tools.security import UnsafeUrlError
-from app.tools.web_scraper import fetch_clean_page
+from app.tools.web_scraper import ScrapedPage, fetch_clean_page
 from app.tools.web_search import SearchHit, search_web
 
 
@@ -243,6 +243,7 @@ async def test_collect_competitor_evidence_deduplicates_urls(
 
     monkeypatch.setattr("app.tools.registry.async_search_web", fake_search)
     monkeypatch.setattr("app.tools.registry.fetch_clean_page", fake_scrape)
+    monkeypatch.setattr("app.tools.registry.fetch_pricing_page_playwright", fake_scrape)
     monkeypatch.setattr("app.tools.registry.search_hacker_news", fake_hn)
     monkeypatch.setattr("app.tools.registry.search_reddit", fake_reddit)
     monkeypatch.setattr("app.tools.registry.search_github_repos", fake_gh)
@@ -252,3 +253,67 @@ async def test_collect_competitor_evidence_deduplicates_urls(
     assert len(urls) == len(set(urls))
     assert "https://acme.example.com/pricing" in urls
     assert "https://news.ycombinator.com/item?id=99" in urls
+
+
+async def test_collect_competitor_evidence_falls_back_to_playwright_for_short_pricing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_search(query: str, max_results: int = 5) -> list[SearchHit]:
+        return []
+
+    async def fake_scrape(url: str) -> ScrapedPage | None:
+        if url.endswith("/pricing"):
+            return ScrapedPage(url=url, title="Pricing", content="Enable JS to view pricing.")
+        return None
+
+    pw_calls: list[str] = []
+
+    async def fake_playwright(url: str) -> ScrapedPage | None:
+        pw_calls.append(url)
+        return ScrapedPage(
+            url=url,
+            title="Acme Pricing Rendered",
+            content="Starter Free, Pro $39/user/mo with SSO, Enterprise custom pricing.",
+        )
+
+    async def fake_empty(*args: object, **kwargs: object) -> list:
+        return []
+
+    monkeypatch.setattr("app.tools.registry.async_search_web", fake_search)
+    monkeypatch.setattr("app.tools.registry.fetch_clean_page", fake_scrape)
+    monkeypatch.setattr("app.tools.registry.fetch_pricing_page_playwright", fake_playwright)
+    monkeypatch.setattr("app.tools.registry.search_hacker_news", fake_empty)
+    monkeypatch.setattr("app.tools.registry.search_reddit", fake_empty)
+    monkeypatch.setattr("app.tools.registry.search_github_repos", fake_empty)
+
+    citations = await collect_competitor_evidence("Acme", "https://acme.example.com")
+    assert pw_calls == ["https://acme.example.com/pricing"]
+    pricing_citations = [c for c in citations if c.url == "https://acme.example.com/pricing"]
+    assert len(pricing_citations) == 1
+    assert "$39/user/mo" in pricing_citations[0].snippet
+
+
+async def test_collect_competitor_evidence_catches_unsafe_url_from_playwright(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_search(query: str, max_results: int = 5) -> list[SearchHit]:
+        return []
+
+    async def fake_scrape(url: str) -> ScrapedPage | None:
+        return None
+
+    async def fake_playwright(url: str) -> ScrapedPage | None:
+        raise UnsafeUrlError("Blocked redirect to private IP")
+
+    async def fake_empty(*args: object, **kwargs: object) -> list:
+        return []
+
+    monkeypatch.setattr("app.tools.registry.async_search_web", fake_search)
+    monkeypatch.setattr("app.tools.registry.fetch_clean_page", fake_scrape)
+    monkeypatch.setattr("app.tools.registry.fetch_pricing_page_playwright", fake_playwright)
+    monkeypatch.setattr("app.tools.registry.search_hacker_news", fake_empty)
+    monkeypatch.setattr("app.tools.registry.search_reddit", fake_empty)
+    monkeypatch.setattr("app.tools.registry.search_github_repos", fake_empty)
+
+    citations = await collect_competitor_evidence("Acme", "https://acme.example.com")
+    assert citations == []
