@@ -1,7 +1,7 @@
-"""Configuration management for CMI Desk."""
+"""Configuration management for MoatRadar."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import httpx
 from pydantic import Field
@@ -11,14 +11,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_FILE = BASE_DIR / ".env"
 
 SupportedProvider = Literal["gemini", "openai", "anthropic", "groq", "ollama"]
-
-PROVIDER_MODELS: dict[SupportedProvider, list[str]] = {
-    "gemini": ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"],
-    "openai": ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
-    "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-haiku-latest"],
-    "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
-    "ollama": [],
-}
+SUPPORTED_PROVIDERS: tuple[SupportedProvider, ...] = (
+    "gemini",
+    "openai",
+    "anthropic",
+    "groq",
+    "ollama",
+)
 
 
 class Settings(BaseSettings):
@@ -36,8 +35,8 @@ class Settings(BaseSettings):
     groq_api_key: str = Field(default="")
     ollama_base_url: str = Field(default="http://127.0.0.1:11434")
 
-    default_llm_provider: SupportedProvider = "gemini"
-    default_llm_model: str = "gemini-3.5-flash"
+    default_llm_provider: str = Field(default="")
+    default_llm_model: str = Field(default="")
 
     sqlite_db_path: str = str(BASE_DIR / "backend" / "data" / "cmi_desk.db")
     chroma_persist_dir: str = str(BASE_DIR / "backend" / "data" / "chroma")
@@ -77,23 +76,157 @@ class Settings(BaseSettings):
             return False, []
         return True, names
 
-    def provider_unavailable_reason(self, provider: SupportedProvider) -> str | None:
-        """Return None when provider is ready, otherwise an actionable user error message."""
+    def discover_provider_models(self, provider: SupportedProvider) -> list[str]:
+        """Dynamically query live model IDs from configured providers without hardcoding."""
         if provider == "ollama":
-            base_url = self.ollama_base_url.strip().rstrip("/")
-            if not base_url:
-                return "OLLAMA_BASE_URL is not configured in .env."
-            reachable, models = self.discover_ollama_models()
-            if not reachable:
-                return (
-                    f"Ollama server is not reachable at {base_url}. "
-                    "Start Ollama (e.g. 'ollama serve') or select another provider."
+            _, names = self.discover_ollama_models()
+            return names
+
+        api_key = self.get_api_key(provider)
+        if not api_key:
+            return []
+
+        try:
+            if provider == "gemini":
+                resp = httpx.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    params={"key": api_key, "pageSize": 50},
+                    timeout=1.5,
                 )
-            if not models:
-                return (
-                    f"Ollama is running at {base_url}, but no models are installed. "
-                    "Pull one first (e.g. 'ollama pull llama3.2')."
+                resp.raise_for_status()
+                items = resp.json().get("models", [])
+                return [
+                    str(m.get("name", "")).removeprefix("models/")
+                    for m in items
+                    if isinstance(m, dict)
+                    and "generateContent" in (m.get("supportedGenerationMethods") or [])
+                    and m.get("name")
+                ]
+
+            if provider in {"openai", "groq"}:
+                url = (
+                    "https://api.openai.com/v1/models"
+                    if provider == "openai"
+                    else "https://api.groq.com/openai/v1/models"
                 )
+                resp = httpx.get(
+                    url,
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=1.5,
+                )
+                resp.raise_for_status()
+                items = resp.json().get("data", [])
+                return sorted(
+                    str(m["id"]) for m in items if isinstance(m, dict) and m.get("id")
+                )
+
+            if provider == "anthropic":
+                resp = httpx.get(
+                    "https://api.anthropic.com/v1/models",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                    },
+                    timeout=1.5,
+                )
+                resp.raise_for_status()
+                items = resp.json().get("data", [])
+                return [
+                    str(m["id"]) for m in items if isinstance(m, dict) and m.get("id")
+                ]
+        except (httpx.HTTPError, ValueError):
+            return []
+        return []
+
+    def check_ollama_model(self, model_name: str) -> dict[str, Any]:
+        """Verify whether Ollama is reachable and has the requested model installed."""
+        target = model_name.strip()
+        base_url = self.ollama_base_url.strip().rstrip("/")
+        if not base_url:
+            return {
+                "reachable": False,
+                "available": False,
+                "model": target,
+                "installed_models": [],
+                "details": {},
+                "detail": "OLLAMA_BASE_URL is not configured in .env.",
+            }
+
+        reachable, installed = self.discover_ollama_models()
+        if not reachable:
+            return {
+                "reachable": False,
+                "available": False,
+                "model": target,
+                "installed_models": [],
+                "details": {},
+                "detail": f"Ollama server is not reachable at {base_url}. Run 'ollama serve' first.",
+            }
+
+        if not target:
+            return {
+                "reachable": True,
+                "available": False,
+                "model": "",
+                "installed_models": installed,
+                "details": {},
+                "detail": "Enter an Ollama model tag to check (e.g. gemma4:12b).",
+            }
+
+        matched = target in installed or (
+            ":" not in target and f"{target}:latest" in installed
+        )
+        if not matched:
+            return {
+                "reachable": True,
+                "available": False,
+                "model": target,
+                "installed_models": installed,
+                "details": {},
+                "detail": (
+                    f"Model '{target}' is not installed on Ollama. "
+                    f"Pull it first with: ollama pull {target}"
+                ),
+            }
+
+        details: dict[str, Any] = {}
+        try:
+            show_resp = httpx.post(
+                f"{base_url}/api/show",
+                json={"model": target},
+                timeout=1.2,
+            )
+            if show_resp.status_code == 200:
+                show_data = show_resp.json()
+                raw_details = show_data.get("details")
+                if isinstance(raw_details, dict):
+                    details = {
+                        k: v
+                        for k, v in raw_details.items()
+                        if k in {"family", "parameter_size", "quantization_level", "format"}
+                    }
+        except (httpx.HTTPError, ValueError):
+            details = {}
+
+        return {
+            "reachable": True,
+            "available": True,
+            "model": target,
+            "installed_models": installed,
+            "details": details,
+            "detail": f"Model '{target}' is installed and ready on Ollama.",
+        }
+
+    def provider_unavailable_reason(
+        self, provider: SupportedProvider, model_name: str = ""
+    ) -> str | None:
+        """Return None when provider (and Ollama model, if applicable) is ready."""
+        if provider == "ollama":
+            status = self.check_ollama_model(model_name)
+            if not status["reachable"]:
+                return str(status["detail"])
+            if model_name.strip() and not status["available"]:
+                return str(status["detail"])
             return None
 
         if not self.get_api_key(provider):
@@ -103,17 +236,15 @@ class Settings(BaseSettings):
             )
         return None
 
-    def configured_providers(self) -> list[dict]:
-        """Return non-sensitive provider availability metadata."""
-        providers: list[dict] = []
-        for provider, fallback_models in PROVIDER_MODELS.items():
+    def configured_providers(self) -> list[dict[str, Any]]:
+        """Return non-sensitive provider availability metadata without hardcoded models."""
+        providers: list[dict[str, Any]] = []
+        for provider in SUPPORTED_PROVIDERS:
             if provider == "ollama":
-                reachable, discovered = self.discover_ollama_models()
-                available = reachable and bool(discovered)
-                models = discovered
+                available, models = self.discover_ollama_models()
             else:
                 available = bool(self.get_api_key(provider))
-                models = fallback_models
+                models = self.discover_provider_models(provider) if available else []
             providers.append(
                 {
                     "provider": provider,

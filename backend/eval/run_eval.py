@@ -1,4 +1,4 @@
-"""Automated Agentic AI Evaluation Harness for CMI Desk.
+"""Automated Agentic AI Evaluation Harness for MoatRadar.
 
 Measures:
 1. Citation Grounding Rate (% of deliverable URLs verified against collected source_citations)
@@ -181,7 +181,7 @@ def audit_existing_runs() -> list[dict[str, Any]]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="CMI Desk Agentic Evaluation Harness")
+    parser = argparse.ArgumentParser(description="MoatRadar Agentic Evaluation Harness")
     parser.add_argument(
         "--mode",
         choices=["audit-db", "live"],
@@ -213,6 +213,8 @@ def main() -> None:
         report = audit_existing_runs()
         print(json.dumps({"audited_runs": len(report), "results": report}, indent=2))
     else:
+        if not args.provider or not args.model:
+            parser.error("--mode live requires both --provider and --model.")
         result = asyncio.run(
             run_live_benchmark(
                 product_name=args.product,

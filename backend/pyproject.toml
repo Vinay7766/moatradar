@@ -1,7 +1,7 @@
 [project]
-name = "cmi-desk-backend"
+name = "moatradar-backend"
 version = "0.1.0"
-description = "Competitive Market Intelligence Desk - Multi-Agent LangGraph Backend"
+description = "MoatRadar - Multi-Agent LangGraph Competitive Intelligence Engine"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",

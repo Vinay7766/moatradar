@@ -1,4 +1,4 @@
-"""FastAPI REST and SSE routes for CMI Desk."""
+"""FastAPI REST and SSE routes for MoatRadar."""
 
 import json
 from typing import Any
@@ -16,6 +16,7 @@ from app.schemas.intelligence import (
     DossierPayload,
     HitlApproveRequest,
     MissionStartRequest,
+    OllamaCheckRequest,
     RagChatRequest,
     SourceCitationInput,
     WorkspaceCreateRequest,
@@ -54,6 +55,11 @@ def list_providers() -> dict[str, Any]:
     }
 
 
+@router.post("/providers/ollama/check")
+def check_ollama_model_availability(payload: OllamaCheckRequest) -> dict[str, Any]:
+    return settings.check_ollama_model(payload.model)
+
+
 @router.get("/workspaces")
 def list_workspaces(request: Request) -> dict[str, Any]:
     db = _get_db(request)
@@ -84,7 +90,9 @@ def list_workspace_snapshots(workspace_id: str, request: Request) -> dict[str, A
 
 @router.post("/missions", status_code=202)
 async def start_mission(payload: MissionStartRequest, request: Request) -> dict[str, Any]:
-    unavailable_reason = settings.provider_unavailable_reason(payload.llm_provider)
+    unavailable_reason = settings.provider_unavailable_reason(
+        payload.llm_provider, payload.llm_model
+    )
     if unavailable_reason:
         raise HTTPException(status_code=400, detail=unavailable_reason)
 
@@ -270,7 +278,9 @@ async def chat_with_workspace(
     vs = _get_vs(request)
     if not db.get_workspace(workspace_id):
         raise HTTPException(status_code=404, detail="Workspace not found.")
-    unavailable_reason = settings.provider_unavailable_reason(payload.llm_provider)
+    unavailable_reason = settings.provider_unavailable_reason(
+        payload.llm_provider, payload.llm_model
+    )
     if unavailable_reason:
         raise HTTPException(status_code=400, detail=unavailable_reason)
 

@@ -1,4 +1,4 @@
-"""LangGraph state definition for CMI Desk."""
+"""LangGraph state definition for MoatRadar."""
 
 import operator
 from typing import Annotated, TypedDict

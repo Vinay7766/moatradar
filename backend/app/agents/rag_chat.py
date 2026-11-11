@@ -46,7 +46,7 @@ async def answer_workspace_question(
         [
             SystemMessage(
                 content=(
-                    "You are the CMI Desk Follow-Up Analyst for Product Managers. "
+                    "You are the MoatRadar Follow-Up Analyst for Product Managers. "
                     "Answer strictly using the numbered <workspace_evidence> snippets below. "
                     "Cite sources inline as [1], [2], etc. If the evidence doesn't contain the answer, say so."
                 )

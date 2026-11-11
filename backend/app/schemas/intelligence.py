@@ -1,4 +1,4 @@
-"""Pydantic v2 data contracts for CMI Desk."""
+"""Pydantic v2 data contracts for MoatRadar."""
 
 from datetime import UTC, datetime
 from typing import Literal
@@ -213,8 +213,8 @@ class MissionStartRequest(BaseModel):
     product_description: str = Field(min_length=10, max_length=2000)
     target_segment: str = Field(min_length=2, max_length=300)
     seed_competitors: list[str] = Field(default_factory=list, max_length=6)
-    llm_provider: SupportedProvider = "gemini"
-    llm_model: str = Field(default="gemini-3.5-flash", min_length=2, max_length=100)
+    llm_provider: SupportedProvider
+    llm_model: str = Field(min_length=1, max_length=120)
 
 
 class HitlApproveRequest(BaseModel):
@@ -223,12 +223,18 @@ class HitlApproveRequest(BaseModel):
     competitors: list[CompetitorCandidate] = Field(min_length=1, max_length=6)
 
 
+class OllamaCheckRequest(BaseModel):
+    """Request to check whether an Ollama model is locally available."""
+
+    model: str = Field(min_length=1, max_length=120)
+
+
 class RagChatRequest(BaseModel):
     """Follow-up question over workspace dossiers."""
 
     question: str = Field(min_length=3, max_length=1000)
-    llm_provider: SupportedProvider = "gemini"
-    llm_model: str = Field(default="gemini-3.5-flash", min_length=2, max_length=100)
+    llm_provider: SupportedProvider
+    llm_model: str = Field(min_length=1, max_length=120)
 
 
 class RagCitation(BaseModel):

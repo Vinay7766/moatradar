@@ -1,4 +1,4 @@
-"""FastAPI application entrypoint for Competitive Market Intelligence Desk."""
+"""FastAPI application entrypoint for MoatRadar."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -29,9 +29,9 @@ def create_app(
         await runner.shutdown()
 
     app = FastAPI(
-        title="Competitive Market Intelligence Desk",
+        title="MoatRadar",
         version="0.1.0",
-        description="Stateful LangGraph Multi-Agent Competitive Intelligence Workbench for PMs",
+        description="Stateful LangGraph Multi-Agent Competitive Intelligence Platform for Product Managers",
         lifespan=lifespan,
     )
     app.state.db = db

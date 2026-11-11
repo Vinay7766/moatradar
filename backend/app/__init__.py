@@ -1,1 +1,1 @@
-"""Backend package for CMI Desk."""
+"""Backend package for MoatRadar."""
