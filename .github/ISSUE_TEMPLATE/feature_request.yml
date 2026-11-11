@@ -1,0 +1,23 @@
+name: Feature Request
+description: Propose a new capability, collector source, or deliverable view.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / PM Workflow Need
+      description: What workflow gap does this solve for product managers or teams?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe the architecture, API, or UI behavior you envision.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
