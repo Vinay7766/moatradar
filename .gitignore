@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+frontend/.env.local
+backend/.venv/
+backend/data/
+backend/.pytest_cache/
+backend/__pycache__/
+**/__pycache__/
+frontend/node_modules/
+frontend/.next/
+*.db
+*.db-wal
+*.db-shm
