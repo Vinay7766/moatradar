@@ -16,6 +16,20 @@ export interface ProviderInfo {
   default_model: string;
 }
 
+export interface OllamaCheckResult {
+  reachable: boolean;
+  available: boolean;
+  model: string;
+  installed_models: string[];
+  details: {
+    family?: string;
+    parameter_size?: string;
+    quantization_level?: string;
+    format?: string;
+  };
+  detail: string;
+}
+
 export interface Workspace {
   id: string;
   name: string;

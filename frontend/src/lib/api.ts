@@ -4,6 +4,7 @@ import {
   CompetitorCandidate,
   DossierSnapshot,
   MissionRun,
+  OllamaCheckResult,
   ProviderInfo,
   RagCitation,
   SourceCitation,
@@ -36,11 +37,18 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchProviders(): Promise<{
-  default_provider: SupportedProvider;
+  default_provider: SupportedProvider | "";
   default_model: string;
   providers: ProviderInfo[];
 }> {
   return apiFetch("/api/providers");
+}
+
+export async function checkOllamaModel(model: string): Promise<OllamaCheckResult> {
+  return apiFetch("/api/providers/ollama/check", {
+    method: "POST",
+    body: JSON.stringify({ model }),
+  });
 }
 
 export async function fetchWorkspaces(): Promise<{ workspaces: Workspace[] }> {

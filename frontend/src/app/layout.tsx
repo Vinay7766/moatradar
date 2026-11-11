@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CMI Desk — Competitive Market Intelligence for Product Managers",
+  title: "MoatRadar — Competitive Market Intelligence for Product Managers",
   description:
-    "Stateful LangGraph multi-agent competitive intelligence workbench with Critic verification, HITL approval, and longitudinal diffing.",
+    "Open-source multi-agent competitive intelligence workbench with Critic verification, human-in-the-loop review, and snapshot diffing.",
 };
 
 export default function RootLayout({

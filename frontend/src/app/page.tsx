@@ -33,9 +33,10 @@ import {
 
 export default function HomePage() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [selectedProvider, setSelectedProvider] =
-    useState<SupportedProvider>("gemini");
-  const [selectedModel, setSelectedModel] = useState("gemini-3.5-flash");
+  const [selectedProvider, setSelectedProvider] = useState<
+    SupportedProvider | ""
+  >("");
+  const [selectedModel, setSelectedModel] = useState("");
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(
@@ -64,13 +65,19 @@ export default function HomePage() {
       ]);
       setBannerError(null);
       setProviders(provData.providers);
+      const envProvider = provData.providers.find(
+        (p) => p.provider === provData.default_provider && p.configured
+      );
       const firstReady = provData.providers.find((p) => p.configured);
-      if (firstReady) {
+      if (envProvider) {
+        setSelectedProvider(envProvider.provider);
+        setSelectedModel(provData.default_model || envProvider.default_model);
+      } else if (firstReady) {
         setSelectedProvider(firstReady.provider);
         setSelectedModel(firstReady.default_model);
       } else {
-        setSelectedProvider(provData.default_provider);
-        setSelectedModel(provData.default_model);
+        setSelectedProvider("");
+        setSelectedModel("");
       }
       setWorkspaces(wsData.workspaces);
     } catch (err) {
@@ -89,13 +96,19 @@ export default function HomePage() {
         if (!active) return;
         setBannerError(null);
         setProviders(provData.providers);
+        const envProvider = provData.providers.find(
+          (p) => p.provider === provData.default_provider && p.configured
+        );
         const firstReady = provData.providers.find((p) => p.configured);
-        if (firstReady) {
+        if (envProvider) {
+          setSelectedProvider(envProvider.provider);
+          setSelectedModel(provData.default_model || envProvider.default_model);
+        } else if (firstReady) {
           setSelectedProvider(firstReady.provider);
           setSelectedModel(firstReady.default_model);
         } else {
-          setSelectedProvider(provData.default_provider);
-          setSelectedModel(provData.default_model);
+          setSelectedProvider("");
+          setSelectedModel("");
         }
         setWorkspaces(wsData.workspaces);
       })
@@ -190,6 +203,9 @@ export default function HomePage() {
     target_segment: string;
     seed_competitors: string[];
   }) {
+    if (!selectedProvider || !selectedModel.trim()) {
+      throw new Error("Select an LLM provider and enter a model name.");
+    }
     setIsLaunching(true);
     setBannerError(null);
     try {
@@ -197,7 +213,7 @@ export default function HomePage() {
         workspace_id: selectedWorkspace?.id || null,
         ...payload,
         llm_provider: selectedProvider,
-        llm_model: selectedModel,
+        llm_model: selectedModel.trim(),
       });
       setSelectedWorkspace(res.workspace);
       setActiveRun(res.run);
@@ -245,12 +261,15 @@ export default function HomePage() {
 
   async function handleSendChat(question: string) {
     if (!selectedWorkspace) return;
+    if (!selectedProvider || !selectedModel.trim()) {
+      throw new Error("Select an LLM provider and model first.");
+    }
     setIsChatting(true);
     try {
       await sendWorkspaceChat(selectedWorkspace.id, {
         question,
         llm_provider: selectedProvider,
-        llm_model: selectedModel,
+        llm_model: selectedModel.trim(),
       });
       const history = await fetchChatHistory(selectedWorkspace.id);
       setChatMessages(history.messages);

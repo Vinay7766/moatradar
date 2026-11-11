@@ -1,14 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Play, Sparkles } from "lucide-react";
-import { ProviderInfo, SupportedProvider } from "@/lib/types";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Play,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
+import { checkOllamaModel } from "@/lib/api";
+import {
+  OllamaCheckResult,
+  ProviderInfo,
+  SupportedProvider,
+} from "@/lib/types";
 
 interface MissionLauncherProps {
   providers: ProviderInfo[];
-  selectedProvider: SupportedProvider;
+  selectedProvider: SupportedProvider | "";
   selectedModel: string;
-  onChangeProvider: (provider: SupportedProvider, model: string) => void;
+  onChangeProvider: (provider: SupportedProvider | "", model: string) => void;
   onLaunch: (payload: {
     product_name: string;
     product_description: string;
@@ -41,11 +53,35 @@ export function MissionLauncher({
   const [segment, setSegment] = useState(initialProduct?.target_segment || "");
   const [seedInput, setSeedInput] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [checkingOllama, setCheckingOllama] = useState(false);
+  const [ollamaCheck, setOllamaCheck] = useState<OllamaCheckResult | null>(null);
 
   const activeProviderMeta = providers.find(
     (p) => p.provider === selectedProvider
   );
   const anyConfigured = providers.some((p) => p.configured);
+
+  async function verifyOllama(modelToCheck: string): Promise<OllamaCheckResult | null> {
+    const trimmed = modelToCheck.trim();
+    if (!trimmed) {
+      setFormError("Enter an Ollama model name first (e.g. gemma4:12b).");
+      return null;
+    }
+    setCheckingOllama(true);
+    setFormError(null);
+    try {
+      const res = await checkOllamaModel(trimmed);
+      setOllamaCheck(res);
+      return res;
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to check Ollama model availability."
+      );
+      return null;
+    } finally {
+      setCheckingOllama(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +97,26 @@ export function MissionLauncher({
     if (segment.trim().length < 2) {
       setFormError("Specify your target PM segment or ICP.");
       return;
+    }
+    if (!selectedProvider) {
+      setFormError("Select a configured LLM provider.");
+      return;
+    }
+    if (!selectedModel.trim()) {
+      setFormError("Enter or select an LLM model name.");
+      return;
+    }
+    if (selectedProvider === "ollama") {
+      const status =
+        ollamaCheck && ollamaCheck.model === selectedModel.trim()
+          ? ollamaCheck
+          : await verifyOllama(selectedModel);
+      if (!status || !status.available) {
+        setFormError(
+          status?.detail || `Ollama model '${selectedModel.trim()}' is not available.`
+        );
+        return;
+      }
     }
 
     const seeds = seedInput
@@ -196,19 +252,21 @@ export function MissionLauncher({
               id="llm-provider"
               value={selectedProvider}
               onChange={(e) => {
-                const next = e.target.value as SupportedProvider;
+                const next = e.target.value as SupportedProvider | "";
                 const meta = providers.find((p) => p.provider === next);
+                setOllamaCheck(null);
                 onChangeProvider(next, meta?.default_model || "");
               }}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
             >
+              <option value="">Select provider...</option>
               {providers.map((p) => (
                 <option key={p.provider} value={p.provider}>
                   {p.provider.toUpperCase()}{" "}
                   {p.configured
                     ? "(Ready)"
                     : p.provider === "ollama"
-                      ? "(Offline / No models)"
+                      ? "(Server offline)"
                       : "(Key missing)"}
                 </option>
               ))}
@@ -222,28 +280,62 @@ export function MissionLauncher({
             >
               Model
             </label>
-            <select
-              id="llm-model"
-              value={selectedModel}
-              onChange={(e) => onChangeProvider(selectedProvider, e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
-            >
-              {(activeProviderMeta?.models.length
-                ? activeProviderMeta.models
-                : selectedModel
-                  ? [selectedModel]
-                  : []
-              ).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-              {activeProviderMeta && activeProviderMeta.models.length === 0 && (
-                <option value="" disabled>
-                  No local Ollama models detected
-                </option>
+            <div className="mt-1 flex gap-2">
+              <input
+                id="llm-model"
+                type="text"
+                list="provider-models-datalist"
+                value={selectedModel}
+                onChange={(e) => {
+                  setOllamaCheck(null);
+                  onChangeProvider(selectedProvider, e.target.value);
+                }}
+                placeholder={
+                  selectedProvider === "ollama"
+                    ? "Enter Ollama model (e.g. gemma4:12b)"
+                    : "Enter or choose model ID"
+                }
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              />
+              {selectedProvider === "ollama" && (
+                <button
+                  type="button"
+                  onClick={() => void verifyOllama(selectedModel)}
+                  disabled={checkingOllama || !selectedModel.trim()}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  {checkingOllama ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    "Check"
+                  )}
+                </button>
               )}
-            </select>
+            </div>
+            <datalist id="provider-models-datalist">
+              {(activeProviderMeta?.models || []).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+            {selectedProvider === "ollama" && ollamaCheck && (
+              <p
+                className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${
+                  ollamaCheck.available ? "text-emerald-700" : "text-rose-700"
+                }`}
+              >
+                {ollamaCheck.available ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>
+                  {ollamaCheck.detail}
+                  {ollamaCheck.available && ollamaCheck.details?.parameter_size
+                    ? ` (${ollamaCheck.details.parameter_size})`
+                    : ""}
+                </span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -256,7 +348,12 @@ export function MissionLauncher({
         <div className="flex items-center justify-end pt-2">
           <button
             type="submit"
-            disabled={isSubmitting || !activeProviderMeta?.configured}
+            disabled={
+              isSubmitting ||
+              checkingOllama ||
+              !activeProviderMeta?.configured ||
+              !selectedModel.trim()
+            }
             className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Play className="w-4 h-4" />
