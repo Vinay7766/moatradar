@@ -1,0 +1,179 @@
+"use client";
+
+import { useState } from "react";
+import { CheckCircle2, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { CompetitorCandidate } from "@/lib/types";
+
+interface HitlApprovalPanelProps {
+  discovered: CompetitorCandidate[];
+  onApprove: (competitors: CompetitorCandidate[]) => Promise<void>;
+  isApproving: boolean;
+}
+
+export function HitlApprovalPanel({
+  discovered,
+  onApprove,
+  isApproving,
+}: HitlApprovalPanelProps) {
+  const [candidates, setCandidates] = useState<CompetitorCandidate[]>(discovered);
+  const [newName, setNewName] = useState("");
+  const [newWebsite, setNewWebsite] = useState("");
+  const [newCategory, setNewCategory] = useState<
+    "direct" | "adjacent" | "substitute"
+  >("direct");
+  const [error, setError] = useState<string | null>(null);
+
+  function removeItem(idx: number) {
+    setCandidates((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function addCustomCompetitor() {
+    setError(null);
+    if (!newName.trim()) {
+      setError("Enter a competitor name before adding.");
+      return;
+    }
+    if (candidates.length >= 6) {
+      setError("Maximum 6 competitors per deep-dive mission.");
+      return;
+    }
+    setCandidates((prev) => [
+      ...prev,
+      {
+        name: newName.trim(),
+        website: newWebsite.trim(),
+        category: newCategory,
+        rationale: "Added by Product Manager at HITL checkpoint.",
+      },
+    ]);
+    setNewName("");
+    setNewWebsite("");
+  }
+
+  async function handleApprove() {
+    if (candidates.length === 0) {
+      setError("Keep at least 1 competitor before resuming research.");
+      return;
+    }
+    await onApprove(candidates);
+  }
+
+  return (
+    <section className="bg-amber-50/70 border border-amber-300 rounded-lg p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-amber-200">
+        <div className="flex items-center gap-2.5">
+          <ShieldCheck className="w-5 h-5 text-amber-700" />
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">
+              Human-in-the-Loop Checkpoint: Confirm Competitors
+            </h3>
+            <p className="text-xs text-slate-600">
+              LangGraph execution is paused. Edit the discovered list before specialist agents fan out.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleApprove}
+          disabled={isApproving || candidates.length === 0}
+          className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50 transition-colors"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          {isApproving ? "Resuming Agents..." : `Approve (${candidates.length}) & Run Deep Dive`}
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        {candidates.map((c, idx) => (
+          <div
+            key={`${c.name}-${idx}`}
+            className="bg-white border border-slate-200 rounded-md p-3 flex items-start justify-between gap-3"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm text-slate-900">
+                  {c.name}
+                </span>
+                <span className="text-[11px] font-medium uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                  {c.category}
+                </span>
+              </div>
+              {c.website && (
+                <p className="text-xs text-teal-700 truncate mt-0.5">
+                  {c.website}
+                </p>
+              )}
+              {c.rationale && (
+                <p className="text-xs text-slate-600 mt-1 line-clamp-2">
+                  {c.rationale}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => removeItem(idx)}
+              aria-label={`Remove ${c.name}`}
+              className="p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-amber-200 flex flex-wrap items-end gap-2">
+        <div className="flex-1 min-w-[160px]">
+          <label className="block text-xs font-medium text-slate-700">
+            Add Competitor
+          </label>
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Competitor name"
+            className="mt-1 w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+          />
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <label className="block text-xs font-medium text-slate-700">
+            Website (optional)
+          </label>
+          <input
+            type="url"
+            value={newWebsite}
+            onChange={(e) => setNewWebsite(e.target.value)}
+            placeholder="https://competitor.com"
+            className="mt-1 w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-700">
+            Type
+          </label>
+          <select
+            value={newCategory}
+            onChange={(e) =>
+              setNewCategory(
+                e.target.value as "direct" | "adjacent" | "substitute"
+              )
+            }
+            className="mt-1 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+          >
+            <option value="direct">Direct</option>
+            <option value="adjacent">Adjacent</option>
+            <option value="substitute">Substitute</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={addCustomCompetitor}
+          className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+        >
+          <Plus className="w-4 h-4" />
+          Add
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-rose-700 font-medium">{error}</p>}
+    </section>
+  );
+}
