@@ -11,6 +11,7 @@ from app.config import settings
 from app.db.database import Database
 from app.db.vector_store import DossierVectorStore
 from app.services.mission_runner import MissionRunner
+from app.services.monitor_scheduler import MonitorScheduler
 
 
 def create_app(
@@ -22,21 +23,25 @@ def create_app(
     db.init_db()
     vector_store = vector_store_override or DossierVectorStore(settings.chroma_persist_dir)
     runner = MissionRunner(db=db, vector_store=vector_store)
+    monitor_scheduler = MonitorScheduler(db=db, runner=runner)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        monitor_scheduler.start()
         yield
+        await monitor_scheduler.stop()
         await runner.shutdown()
 
     app = FastAPI(
         title="MoatRadar",
-        version="0.1.0",
+        version="0.2.0",
         description="Stateful LangGraph Multi-Agent Competitive Intelligence Platform for Product Managers",
         lifespan=lifespan,
     )
     app.state.db = db
     app.state.vector_store = vector_store
     app.state.runner = runner
+    app.state.monitor_scheduler = monitor_scheduler
 
     app.add_middleware(
         CORSMiddleware,

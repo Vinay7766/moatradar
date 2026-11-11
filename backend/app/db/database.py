@@ -105,6 +105,30 @@ class Database:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS custom_documents (
+                    id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    char_count INTEGER NOT NULL,
+                    content_excerpt TEXT NOT NULL,
+                    uploaded_at TEXT NOT NULL,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS workspace_monitors (
+                    workspace_id TEXT PRIMARY KEY,
+                    interval TEXT NOT NULL DEFAULT 'off',
+                    webhook_url TEXT,
+                    llm_provider TEXT,
+                    llm_model TEXT,
+                    last_run_at TEXT,
+                    next_run_at TEXT,
+                    last_status TEXT,
+                    last_diff_headline TEXT,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+                );
                 """
             )
 
@@ -388,3 +412,165 @@ class Database:
                 d["citations"] = json.loads(d.pop("citations_json", "[]"))
                 out.append(d)
             return out
+
+    def reset_run_for_retry(
+        self,
+        run_id: str,
+        status: MissionStatus,
+        llm_provider: str,
+        llm_model: str,
+        approved_competitors: list[CompetitorCandidate] | None = None,
+    ) -> None:
+        """Reset error state and optionally update provider/model/competitors for retry."""
+        fields = [
+            "status = ?",
+            "llm_provider = ?",
+            "llm_model = ?",
+            "error_message = NULL",
+            "completed_at = NULL",
+        ]
+        params: list[Any] = [status, llm_provider, llm_model]
+        if approved_competitors is not None:
+            fields.append("approved_competitors_json = ?")
+            params.append(json.dumps([c.model_dump() for c in approved_competitors]))
+        params.append(run_id)
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE mission_runs SET {', '.join(fields)} WHERE id = ?",
+                params,
+            )
+
+    def create_custom_document(
+        self,
+        workspace_id: str,
+        filename: str,
+        content_type: str,
+        char_count: int,
+        content_excerpt: str,
+        doc_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Persist metadata for a workspace-scoped custom uploaded evidence file."""
+        record_id = doc_id or str(uuid4())
+        uploaded_at = utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO custom_documents (
+                    id, workspace_id, filename, content_type, char_count, content_excerpt, uploaded_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record_id,
+                    workspace_id,
+                    filename,
+                    content_type,
+                    char_count,
+                    content_excerpt,
+                    uploaded_at,
+                ),
+            )
+        return self.get_custom_document(workspace_id, record_id)  # type: ignore[return-value]
+
+    def get_custom_document(self, workspace_id: str, doc_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM custom_documents WHERE workspace_id = ? AND id = ?",
+                (workspace_id, doc_id),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_custom_documents(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM custom_documents WHERE workspace_id = ? ORDER BY uploaded_at DESC",
+                (workspace_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_custom_document(self, workspace_id: str, doc_id: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM custom_documents WHERE workspace_id = ? AND id = ?",
+                (workspace_id, doc_id),
+            )
+            return cursor.rowcount > 0
+
+    def get_workspace_monitor(self, workspace_id: str) -> dict[str, Any]:
+        """Return workspace monitor settings or default disabled configuration."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM workspace_monitors WHERE workspace_id = ?",
+                (workspace_id,),
+            ).fetchone()
+            if row:
+                return dict(row)
+        return {
+            "workspace_id": workspace_id,
+            "interval": "off",
+            "webhook_url": None,
+            "llm_provider": None,
+            "llm_model": None,
+            "last_run_at": None,
+            "next_run_at": None,
+            "last_status": None,
+            "last_diff_headline": None,
+        }
+
+    def upsert_workspace_monitor(
+        self,
+        workspace_id: str,
+        interval: str,
+        webhook_url: str | None,
+        llm_provider: str | None,
+        llm_model: str | None,
+        next_run_at: str | None,
+    ) -> dict[str, Any]:
+        """Insert or update a workspace's scheduled monitor settings."""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO workspace_monitors (
+                    workspace_id, interval, webhook_url, llm_provider, llm_model, next_run_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(workspace_id) DO UPDATE SET
+                    interval = excluded.interval,
+                    webhook_url = excluded.webhook_url,
+                    llm_provider = excluded.llm_provider,
+                    llm_model = excluded.llm_model,
+                    next_run_at = excluded.next_run_at
+                """,
+                (workspace_id, interval, webhook_url, llm_provider, llm_model, next_run_at),
+            )
+        return self.get_workspace_monitor(workspace_id)
+
+    def update_monitor_run_result(
+        self,
+        workspace_id: str,
+        last_run_at: str,
+        next_run_at: str | None,
+        last_status: str,
+        last_diff_headline: str | None = None,
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE workspace_monitors
+                SET last_run_at = ?, next_run_at = ?, last_status = ?, last_diff_headline = ?
+                WHERE workspace_id = ?
+                """,
+                (last_run_at, next_run_at, last_status, last_diff_headline, workspace_id),
+            )
+
+    def list_due_monitors(self, now_iso: str) -> list[dict[str, Any]]:
+        """List active monitors whose next_run_at is due."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM workspace_monitors
+                WHERE interval != 'off' AND (next_run_at IS NULL OR next_run_at <= ?)
+                """,
+                (now_iso,),
+            ).fetchall()
+            return [dict(r) for r in rows]

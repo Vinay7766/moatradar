@@ -260,5 +260,23 @@ class Settings(BaseSettings):
         """Parse comma-separated CORS origins."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
+    def with_overrides(
+        self,
+        provider: SupportedProvider | None = None,
+        api_key: str | None = None,
+        ollama_base_url: str | None = None,
+    ) -> "Settings":
+        """Return an ephemeral Settings copy with per-request BYOK/Ollama overrides."""
+        updates: dict[str, Any] = {}
+        if ollama_base_url is not None and ollama_base_url.strip():
+            updates["ollama_base_url"] = ollama_base_url.strip()
+        if (
+            api_key is not None
+            and api_key.strip()
+            and provider in {"gemini", "openai", "anthropic", "groq"}
+        ):
+            updates[f"{provider}_api_key"] = api_key.strip()
+        return self.model_copy(update=updates) if updates else self.model_copy()
+
 
 settings = Settings()

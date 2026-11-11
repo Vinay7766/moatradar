@@ -2,7 +2,7 @@
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.config import SupportedProvider
+from app.config import Settings, SupportedProvider
 from app.db.vector_store import DossierVectorStore
 from app.llm.factory import create_chat_model
 from app.schemas.intelligence import RagChatResponse, RagCitation
@@ -14,6 +14,7 @@ async def answer_workspace_question(
     question: str,
     llm_provider: SupportedProvider,
     llm_model: str,
+    app_settings: Settings | None = None,
 ) -> RagChatResponse:
     """Retrieve workspace evidence chunks from ChromaDB and answer with inline citations."""
     chunks = vector_store.query_workspace(workspace_id=workspace_id, query=question, top_k=6)
@@ -41,7 +42,9 @@ async def answer_workspace_question(
             )
         )
 
-    llm = create_chat_model(llm_provider, llm_model, temperature=0.1)
+    llm = create_chat_model(
+        llm_provider, llm_model, temperature=0.1, app_settings=app_settings
+    )
     reply = await llm.ainvoke(
         [
             SystemMessage(

@@ -56,6 +56,25 @@ def test_llm_factory_supports_ollama_without_api_key() -> None:
         create_chat_model("ollama", "llama3.2", app_settings=disabled_settings)
 
 
+def test_settings_with_overrides_is_ephemeral() -> None:
+    base = Settings(
+        gemini_api_key="",
+        openai_api_key="",
+        anthropic_api_key="",
+        groq_api_key="",
+        ollama_base_url="http://127.0.0.1:11434",
+    )
+    ephemeral = base.with_overrides(
+        provider="gemini",
+        api_key="byok-temp-key",
+        ollama_base_url="http://127.0.0.1:11435",
+    )
+    assert ephemeral.get_api_key("gemini") == "byok-temp-key"
+    assert ephemeral.ollama_base_url == "http://127.0.0.1:11435"
+    assert base.get_api_key("gemini") == ""
+    assert base.ollama_base_url == "http://127.0.0.1:11434"
+
+
 class _FakeStructuredModel:
     """Deterministic structured output stub for testing graph routing without external LLM billing."""
 
@@ -310,6 +329,22 @@ async def test_langgraph_hitl_and_critic_loop_end_to_end(
         assert snap is not None
         assert snap["dossier"]["battlecards"][0]["competitor_name"] == "Klue"
 
+        # Verify structured node telemetry metadata was emitted
+        statuses = [ev["metadata"].get("node_status") for ev in events if ev.get("metadata")]
+        assert "started" in statuses
+        assert "paused" in statuses
+        assert "completed" in statuses
+        specialist_done = [
+            ev
+            for ev in events
+            if ev["node_name"] == "specialist_research"
+            and ev["metadata"].get("node_status") == "completed"
+            and ev["metadata"].get("competitor_name") == "Klue"
+        ]
+        assert specialist_done
+        assert specialist_done[0]["metadata"].get("duration_ms") is not None
+        assert specialist_done[0]["metadata"].get("total_tasks") == 1
+
     # Verify RAG follow-up Q&A works on indexed snapshot
     monkeypatch.setattr("app.agents.rag_chat.create_chat_model", lambda *a, **kw: _FakeChatModel(counter))
     rag_res = await answer_workspace_question(
@@ -358,3 +393,148 @@ async def test_critic_loop_stops_at_max_iterations(
         )
         == "synthesizer"
     )
+
+
+async def test_specialist_research_includes_custom_upload_citations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.agents.nodes import make_nodes
+
+    db = Database(str(tmp_path / "custom_node.db"))
+    db.init_db()
+    vs = DossierVectorStore(persist_dir=str(tmp_path / "chroma_custom_node"))
+    ws = db.create_workspace("WS", "SignalPulse", "Agentic CI desk", "B2B SaaS PMs")
+    run = db.create_run(ws["id"], thread_id="t-custom-1", llm_provider="gemini", llm_model="gemini-2.5-flash")
+    vs.index_custom_document(
+        workspace_id=ws["id"],
+        doc_id="doc-winloss-1",
+        filename="winloss.md",
+        text="Internal call notes: Klue deals lose on multi-year lock-in.",
+    )
+
+    counter = {"calls": 0}
+    monkeypatch.setattr("app.agents.nodes.create_chat_model", lambda *a, **kw: _FakeChatModel(counter))
+    monkeypatch.setattr(
+        "app.agents.nodes.collect_competitor_evidence",
+        lambda name, website="": _async_return(
+            [
+                SourceCitationInput(
+                    competitor_name=name,
+                    source_type="web",
+                    title="Klue",
+                    url="https://klue.com",
+                    snippet="Battlecards.",
+                )
+            ]
+        ),
+    )
+
+    nodes = make_nodes(db=db, vector_store=vs)
+    res = await nodes["specialist_research"](
+        {
+            "run_id": run["id"],
+            "workspace_id": ws["id"],
+            "product_name": ws["product_name"],
+            "product_description": ws["product_description"],
+            "target_segment": ws["target_segment"],
+            "seed_competitors": ["Klue"],
+            "llm_provider": "gemini",
+            "llm_model": "gemini-2.5-flash",
+            "discovered_competitors": [],
+            "approved_competitors": [
+                CompetitorCandidate(name="Klue", website="https://klue.com", category="direct")
+            ],
+            "research_findings": [],
+            "citations": [],
+            "critic_report": None,
+            "research_gaps": [],
+            "iteration_count": 0,
+            "dossier": None,
+            "diff_summary": None,
+        }
+    )
+    assert any(c.source_type == "custom_upload" for c in res["citations"])
+    saved = db.list_citations(run["id"])
+    assert any(c["source_type"] == "custom_upload" for c in saved)
+
+
+async def test_specialist_research_redacts_byok_key_from_error_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.agents.nodes import (
+        make_nodes,
+        reset_runtime_settings_context,
+        set_runtime_settings_context,
+    )
+
+    db = Database(str(tmp_path / "redact_node.db"))
+    db.init_db()
+    vs = DossierVectorStore(persist_dir=str(tmp_path / "chroma_redact"))
+    ws = db.create_workspace("WS", "SignalPulse", "Agentic CI desk", "B2B SaaS PMs")
+    run = db.create_run(
+        ws["id"], thread_id="t-redact-1", llm_provider="gemini", llm_model="gemini-2.5-flash"
+    )
+
+    secret_key = "AIza-super-secret-ephem-key"
+    monkeypatch.setattr(
+        "app.agents.nodes.collect_competitor_evidence",
+        lambda name, website="": _async_return([]),
+    )
+
+    class _ExplodingStructured:
+        async def ainvoke(self, messages: Any) -> Any:
+            raise RuntimeError(f"401 Unauthorized for api_key={secret_key}")
+
+    class _ExplodingLlm:
+        def with_structured_output(self, schema: type) -> _ExplodingStructured:
+            return _ExplodingStructured()
+
+    monkeypatch.setattr(
+        "app.agents.nodes.create_chat_model",
+        lambda *a, **kw: _ExplodingLlm(),
+    )
+
+    emitted: list[dict[str, Any]] = []
+
+    async def _capture(ev: Any) -> None:
+        emitted.append(ev.model_dump())
+
+    nodes = make_nodes(db=db, vector_store=vs, event_callback=_capture)
+    token = set_runtime_settings_context(Settings(gemini_api_key=secret_key))
+    try:
+        with pytest.raises(RuntimeError):
+            await nodes["specialist_research"](
+                {
+                    "run_id": run["id"],
+                    "workspace_id": ws["id"],
+                    "product_name": ws["product_name"],
+                    "product_description": ws["product_description"],
+                    "target_segment": ws["target_segment"],
+                    "seed_competitors": ["Klue"],
+                    "llm_provider": "gemini",
+                    "llm_model": "gemini-2.5-flash",
+                    "discovered_competitors": [],
+                    "approved_competitors": [
+                        CompetitorCandidate(
+                            name="Klue", website="https://klue.com", category="direct"
+                        )
+                    ],
+                    "research_findings": [],
+                    "citations": [],
+                    "critic_report": None,
+                    "research_gaps": [],
+                    "iteration_count": 0,
+                    "dossier": None,
+                    "diff_summary": None,
+                }
+            )
+    finally:
+        reset_runtime_settings_context(token)
+
+    stored_events = db.list_events(run["id"])
+    err_events = [e for e in stored_events if e["event_type"] == "error"]
+    assert len(err_events) == 1
+    assert secret_key not in str(stored_events)
+    assert secret_key not in str(emitted)
+    assert "[REDACTED]" in err_events[0]["message"]
+    assert "[REDACTED]" in err_events[0]["metadata"]["error_detail"]

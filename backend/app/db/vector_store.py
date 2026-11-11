@@ -96,6 +96,100 @@ class DossierVectorStore:
         self.collection.upsert(ids=ids, documents=docs, metadatas=metadatas)
         return len(docs)
 
+    @staticmethod
+    def _chunk_text(text: str, chunk_size: int = 1200, overlap: int = 150) -> list[str]:
+        clean = text.strip()
+        if not clean:
+            return []
+        if len(clean) <= chunk_size:
+            return [clean]
+        chunks: list[str] = []
+        start = 0
+        step = max(200, chunk_size - overlap)
+        while start < len(clean):
+            end = min(len(clean), start + chunk_size)
+            chunks.append(clean[start:end].strip())
+            if end >= len(clean):
+                break
+            start += step
+        return [c for c in chunks if c]
+
+    def index_custom_document(
+        self,
+        workspace_id: str,
+        doc_id: str,
+        filename: str,
+        text: str,
+    ) -> int:
+        """Chunk and index a workspace-scoped custom upload document into ChromaDB."""
+        chunks = self._chunk_text(text)
+        if not chunks:
+            return 0
+        ids: list[str] = []
+        docs: list[str] = []
+        metadatas: list[dict[str, Any]] = []
+        for idx, chunk in enumerate(chunks):
+            ids.append(f"custom:{doc_id}:chunk_{idx}")
+            docs.append(chunk)
+            metadatas.append(
+                {
+                    "workspace_id": workspace_id,
+                    "run_id": "",
+                    "doc_id": doc_id,
+                    "source_type": "custom_upload",
+                    "competitor_name": "Internal Evidence",
+                    "section": f"Custom Upload ({filename})",
+                    "url": f"custom://{doc_id}/{filename}",
+                }
+            )
+        self.collection.upsert(ids=ids, documents=docs, metadatas=metadatas)
+        return len(docs)
+
+    def delete_custom_document(self, workspace_id: str, doc_id: str) -> None:
+        """Remove all indexed chunks belonging to a deleted custom upload."""
+        res = self.collection.get(where={"doc_id": doc_id})
+        raw_ids = res.get("ids") or []
+        raw_metas = res.get("metadatas") or []
+        to_delete = [
+            item_id
+            for item_id, meta in zip(raw_ids, raw_metas, strict=False)
+            if (meta or {}).get("workspace_id") == workspace_id
+        ]
+        if to_delete:
+            self.collection.delete(ids=to_delete)
+
+    def query_custom_documents(
+        self, workspace_id: str, query: str | None = None, top_k: int = 8
+    ) -> list[dict[str, Any]]:
+        """Retrieve custom_upload chunks scoped to workspace_id."""
+        res = self.collection.get(where={"workspace_id": workspace_id})
+        raw_docs = res.get("documents") or []
+        raw_metas = res.get("metadatas") or []
+        custom_items: list[dict[str, Any]] = []
+        for text, meta in zip(raw_docs, raw_metas, strict=False):
+            if (meta or {}).get("source_type") != "custom_upload":
+                continue
+            custom_items.append(
+                {
+                    "text": text,
+                    "competitor_name": (meta or {}).get("competitor_name", "Internal Evidence"),
+                    "section": (meta or {}).get("section", "Custom Upload"),
+                    "url": (meta or {}).get("url", ""),
+                    "doc_id": (meta or {}).get("doc_id", ""),
+                    "source_type": "custom_upload",
+                }
+            )
+        if not custom_items:
+            return []
+        if query:
+            queried = self.query_workspace(
+                workspace_id=workspace_id, query=query, top_k=max(top_k * 2, 12)
+            )
+            matched = [q for q in queried if q.get("source_type") == "custom_upload"]
+            if matched:
+                return matched[:top_k]
+        return custom_items[:top_k]
+
     def query_workspace(
         self, workspace_id: str, query: str, top_k: int = 6
     ) -> list[dict[str, Any]]:
@@ -120,6 +214,8 @@ class DossierVectorStore:
                     "section": (meta or {}).get("section", "Dossier"),
                     "url": (meta or {}).get("url", ""),
                     "run_id": (meta or {}).get("run_id", ""),
+                    "source_type": (meta or {}).get("source_type", "dossier"),
+                    "doc_id": (meta or {}).get("doc_id", ""),
                 }
             )
         return chunks

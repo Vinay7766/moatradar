@@ -287,3 +287,179 @@ def test_ollama_provider_discovery_and_mission_validation(
         },
     )
     assert ok_launch.status_code == 202
+
+
+def test_byok_headers_override_providers_ollama_mission_and_chat_without_persisting_keys(
+    test_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.api.routes.settings.gemini_api_key", "")
+    monkeypatch.setattr("app.api.routes.settings.openai_api_key", "")
+    monkeypatch.setattr("app.api.routes.settings.anthropic_api_key", "")
+    monkeypatch.setattr("app.api.routes.settings.groq_api_key", "")
+    monkeypatch.setattr(
+        "app.config.Settings.discover_provider_models",
+        lambda self, provider: ["gemini-2.5-flash"] if provider == "gemini" and self.get_api_key("gemini") == "AIza-byok-secret" else [],
+    )
+    monkeypatch.setattr(
+        "app.config.Settings.discover_ollama_models",
+        lambda self: (self.ollama_base_url.rstrip("/") == "http://custom-ollama:11434", ["gemma4:12b"] if self.ollama_base_url.rstrip("/") == "http://custom-ollama:11434" else []),
+    )
+
+    prov_res = test_client.get(
+        "/api/providers",
+        headers={
+            "X-LLM-API-Key": "AIza-byok-secret",
+            "X-Ollama-Base-URL": "http://custom-ollama:11434",
+        },
+    )
+    assert prov_res.status_code == 200
+    assert "AIza-byok-secret" not in prov_res.text
+    prov_map = {p["provider"]: p for p in prov_res.json()["providers"]}
+    assert prov_map["gemini"]["configured"] is True
+    assert prov_map["gemini"]["models"] == ["gemini-2.5-flash"]
+    assert prov_map["ollama"]["configured"] is True
+    assert prov_map["ollama"]["models"] == ["gemma4:12b"]
+
+    ollama_res = test_client.post(
+        "/api/providers/ollama/check",
+        json={"model": "gemma4:12b"},
+        headers={"X-Ollama-Base-URL": "http://custom-ollama:11434"},
+    )
+    assert ollama_res.status_code == 200
+    assert ollama_res.json()["reachable"] is True
+    assert ollama_res.json()["available"] is True
+
+    captured_settings: list[Any] = []
+
+    async def fake_start_mission(
+        run_id: str,
+        initial_state: dict[str, Any],
+        runtime_settings: Any = None,
+    ) -> None:
+        captured_settings.append((initial_state, runtime_settings))
+
+    monkeypatch.setattr(test_client.app.state.runner, "start_mission", fake_start_mission)  # type: ignore[attr-defined]
+
+    mission_res = test_client.post(
+        "/api/missions",
+        headers={"X-LLM-API-Key": "AIza-byok-secret"},
+        json={
+            "product_name": "SignalPulse",
+            "product_description": "Automated PM competitive intelligence desk",
+            "target_segment": "B2B SaaS Product Managers",
+            "llm_provider": "gemini",
+            "llm_model": "gemini-2.5-flash",
+        },
+    )
+    assert mission_res.status_code == 202
+    assert "AIza-byok-secret" not in mission_res.text
+    assert len(captured_settings) == 1
+    init_state, runtime_cfg = captured_settings[0]
+    assert "AIza-byok-secret" not in str(init_state)
+    assert runtime_cfg is not None
+    assert runtime_cfg.get_api_key("gemini") == "AIza-byok-secret"
+
+    ws_id = mission_res.json()["workspace"]["id"]
+    run_id = mission_res.json()["run"]["id"]
+
+    # Confirm DB has zero trace of the ephemeral BYOK key
+    db = test_client.app.state.db  # type: ignore[attr-defined]
+    assert "AIza-byok-secret" not in str(db.get_run(run_id))
+    assert "AIza-byok-secret" not in str(db.list_events(run_id))
+
+    chat_settings: list[Any] = []
+
+    async def fake_rag(*args: Any, **kwargs: Any) -> RagChatResponse:
+        chat_settings.append(kwargs.get("app_settings"))
+        return RagChatResponse(answer="Grounded answer.", citations=[])
+
+    monkeypatch.setattr("app.api.routes.answer_workspace_question", fake_rag)
+    chat_res = test_client.post(
+        f"/api/workspaces/{ws_id}/chat",
+        headers={"X-LLM-API-Key": "AIza-byok-secret"},
+        json={
+            "question": "Compare pricing tiers?",
+            "llm_provider": "gemini",
+            "llm_model": "gemini-2.5-flash",
+        },
+    )
+    assert chat_res.status_code == 200
+    assert "AIza-byok-secret" not in chat_res.text
+    assert chat_settings[0] is not None
+    assert chat_settings[0].get_api_key("gemini") == "AIza-byok-secret"
+
+
+def test_workflow_spec_endpoint_returns_nodes_schemas_and_concepts(
+    test_client: TestClient,
+) -> None:
+    res = test_client.get("/api/workflow/spec")
+    assert res.status_code == 200
+    data = res.json()
+    node_names = {n["node_name"] for n in data["nodes"]}
+    assert {
+        "discovery",
+        "hitl_approval",
+        "specialist_research",
+        "critic_verifier",
+        "targeted_research",
+        "synthesizer",
+        "memory_indexer",
+    }.issubset(node_names)
+    assert len(data["concepts"]) == 8
+    assert len(data["graph_edges"]) >= 7
+    for node in data["nodes"]:
+        assert "prompt_summary" in node
+        assert "output_schema" in node
+        assert "output_fields" in node
+        assert "guardrails" in node
+        assert "concept_tags" in node
+
+
+def test_custom_document_upload_list_and_delete(test_client: TestClient) -> None:
+    ws_res = test_client.post(
+        "/api/workspaces",
+        json={
+            "name": "Custom Docs WS",
+            "product_name": "SignalPulse",
+            "product_description": "Automated PM competitive intelligence desk",
+            "target_segment": "B2B SaaS Product Managers",
+        },
+    )
+    assert ws_res.status_code == 201
+    ws_id = ws_res.json()["workspace"]["id"]
+
+    bad_res = test_client.post(
+        f"/api/workspaces/{ws_id}/documents",
+        files={"file": ("malware.exe", b"MZ\x00\x01", "application/octet-stream")},
+    )
+    assert bad_res.status_code == 400
+
+    up_res = test_client.post(
+        f"/api/workspaces/{ws_id}/documents",
+        files={
+            "file": (
+                "q4-win-loss.md",
+                b"# Q4 Win-Loss Notes\nCustomers switched from Klue due to annual lock-in pricing.",
+                "text/markdown",
+            )
+        },
+    )
+    assert up_res.status_code == 201
+    doc = up_res.json()["document"]
+    assert doc["filename"] == "q4-win-loss.md"
+    assert doc["char_count"] > 20
+    assert "Klue" in doc["content_excerpt"]
+
+    list_res = test_client.get(f"/api/workspaces/{ws_id}/documents")
+    assert list_res.status_code == 200
+    assert len(list_res.json()["documents"]) == 1
+
+    vs = test_client.app.state.vector_store  # type: ignore[attr-defined]
+    chunks = vs.query_workspace(ws_id, "annual lock-in pricing", top_k=3)
+    assert len(chunks) >= 1
+    assert any(c.get("source_type") == "custom_upload" for c in chunks)
+
+    del_res = test_client.delete(f"/api/workspaces/{ws_id}/documents/{doc['id']}")
+    assert del_res.status_code == 200
+    assert test_client.get(f"/api/workspaces/{ws_id}/documents").json()["documents"] == []
+    assert vs.query_workspace(ws_id, "annual lock-in pricing", top_k=3) == []

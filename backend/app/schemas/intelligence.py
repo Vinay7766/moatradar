@@ -14,7 +14,8 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-SourceType = Literal["web", "pricing_page", "hn", "reddit", "github"]
+SourceType = Literal["web", "pricing_page", "hn", "reddit", "github", "custom_upload"]
+MonitorInterval = Literal["off", "daily", "weekly"]
 MissionStatus = Literal[
     "discovering",
     "awaiting_approval",
@@ -221,6 +222,23 @@ class HitlApproveRequest(BaseModel):
     """PM approval payload for discovered competitors."""
 
     competitors: list[CompetitorCandidate] = Field(min_length=1, max_length=6)
+
+
+class MissionRetryRequest(BaseModel):
+    """Recovery request to retry a failed or stalled mission."""
+
+    skip_competitors: list[str] = Field(default_factory=list, max_length=6)
+    llm_provider: SupportedProvider | None = None
+    llm_model: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class WorkspaceMonitorUpdateRequest(BaseModel):
+    """Update scheduled workspace monitor configuration."""
+
+    interval: MonitorInterval
+    webhook_url: str | None = Field(default=None, max_length=500)
+    llm_provider: SupportedProvider | Literal[""] | None = None
+    llm_model: str | None = Field(default=None, max_length=120)
 
 
 class OllamaCheckRequest(BaseModel):
