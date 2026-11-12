@@ -79,17 +79,20 @@ export function CustomEvidencePanel({
   return (
     <section
       aria-label={`Custom evidence for workspace ${workspaceId}`}
-      className="bg-white border border-slate-200 rounded-lg p-4 flex flex-col print:hidden"
+      className="rounded-xl border border-slate-800 bg-[#0f1623] p-4 flex flex-col shadow-xl print:hidden"
     >
-      <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+      <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-start gap-2">
-          <FileUp className="w-4 h-4 text-teal-700 mt-0.5 shrink-0" />
+          <FileUp className="w-4 h-4 text-teal-400 mt-0.5 shrink-0" />
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-slate-100">
               Custom Internal Evidence
             </h3>
-            <p className="text-xs text-slate-500">
-              Upload <code>.md</code>, <code>.txt</code>, or <code>.pdf</code> win/loss notes or battlecards (indexed into RAG &amp; synthesis as <code>custom_upload</code>).
+            <p className="text-xs text-slate-400">
+              Upload <code className="text-teal-300">.md</code>,{" "}
+              <code className="text-teal-300">.txt</code>, or{" "}
+              <code className="text-teal-300">.pdf</code> win/loss notes or battlecards (indexed into RAG &amp; synthesis as{" "}
+              <code className="text-teal-300">custom_upload</code>).
             </p>
           </div>
         </div>
@@ -107,7 +110,7 @@ export function CustomEvidencePanel({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-800 disabled:opacity-50 shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-teal-400 disabled:opacity-50 shrink-0 cursor-pointer"
           >
             {isUploading ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -120,43 +123,43 @@ export function CustomEvidencePanel({
       </div>
 
       {error && (
-        <p role="alert" className="mt-2.5 text-xs font-medium text-rose-700">
+        <p role="alert" className="mt-2.5 text-xs font-medium text-rose-400">
           {error}
         </p>
       )}
 
-      <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-1">
+      <div className="mt-3 space-y-2 max-h-72 overflow-y-auto studio-scroll pr-1">
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-500">
+          <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin" />
             Loading workspace documents...
           </div>
         ) : documents.length === 0 ? (
-          <p className="text-xs text-slate-500 py-5 text-center border border-dashed border-slate-200 rounded-md">
+          <p className="text-xs text-slate-500 py-5 text-center border border-dashed border-slate-700 rounded-lg">
             No custom documents uploaded yet. Add customer call notes, internal specs, or competitor battlecards.
           </p>
         ) : (
           documents.map((doc) => (
             <div
               key={doc.id}
-              className="rounded-md border border-slate-200 bg-slate-50/70 p-2.5 flex items-start justify-between gap-2.5"
+              className="rounded-lg border border-slate-800 bg-slate-950/75 p-2.5 flex items-start justify-between gap-2.5"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-teal-700 shrink-0" />
-                  <span className="text-xs font-semibold text-slate-900 truncate">
+                  <FileText className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-100 truncate">
                     {doc.filename}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded bg-slate-200/70 text-[10px] font-medium text-slate-700">
+                  <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
                     {doc.char_count.toLocaleString()} chars
                   </span>
                 </div>
                 {doc.content_excerpt && (
-                  <p className="mt-1 text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
+                  <p className="mt-1 text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
                     {doc.content_excerpt}
                   </p>
                 )}
-                <p className="mt-1 text-[10px] text-slate-400">
+                <p className="mt-1 text-[10px] text-slate-500">
                   Uploaded {new Date(doc.uploaded_at).toLocaleString()}
                 </p>
               </div>
@@ -165,7 +168,7 @@ export function CustomEvidencePanel({
                 onClick={() => void handleDelete(doc.id)}
                 disabled={deletingId === doc.id}
                 aria-label={`Delete ${doc.filename}`}
-                className="p-1.5 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50 disabled:opacity-50 shrink-0"
+                className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/60 disabled:opacity-50 shrink-0 cursor-pointer"
               >
                 {deletingId === doc.id ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />

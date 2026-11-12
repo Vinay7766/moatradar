@@ -67,7 +67,6 @@ export function MissionLauncher({
   const [ollamaCheck, setOllamaCheck] = useState<OllamaCheckResult | null>(null);
 
   const activeByokProviders = byokConfig ? getActiveByokProviders(byokConfig) : [];
-  const hasCustomOllama = Boolean(byokConfig?.ollamaBaseUrl?.trim());
   const activeProviderMeta = providers.find(
     (p) => p.provider === selectedProvider
   );
@@ -157,50 +156,31 @@ export function MissionLauncher({
   }
 
   return (
-    <section className="bg-white border border-slate-200 rounded-lg p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-slate-100">
+    <section className="rounded-xl border border-slate-800 bg-[#0f1623] p-6 shadow-xl">
+      <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-slate-800">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal-700">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal-400">
             <Sparkles className="w-3.5 h-3.5" />
             Live Multi-Agent Pipeline
           </div>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">
+          <h2 className="mt-1 text-lg font-semibold text-slate-100">
             Launch Competitive Intelligence Mission
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-400">
             Agents run live zero-key web, pricing, Hacker News, Reddit, and GitHub searches with Critic verification.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {onOpenSettings && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 transition-colors"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-teal-700" />
-              <span>Settings (BYOK Keys)</span>
-              {(activeByokProviders.length > 0 || hasCustomOllama) && (
-                <span className="ml-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
-                  {activeByokProviders.length > 0
-                    ? `${activeByokProviders.length} key${activeByokProviders.length > 1 ? "s" : ""}`
-                    : "Ollama"}
-                </span>
-              )}
-            </button>
-          )}
-          {onOpenWorkflowXRay && (
-            <button
-              type="button"
-              onClick={() => onOpenWorkflowXRay("tutor")}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-teal-400" />
-              Interactive AI Tutor &amp; Workflow X-Ray
-            </button>
-          )}
-        </div>
+        {onOpenWorkflowXRay && (
+          <button
+            type="button"
+            onClick={() => onOpenWorkflowXRay("tutor")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-500/15 px-3 py-1.5 text-xs font-semibold text-teal-200 hover:bg-teal-500/25 transition-colors cursor-pointer"
+          >
+            <GraduationCap className="w-3.5 h-3.5 text-teal-400" />
+            Explore 3D Workflow &amp; AI Tutor
+          </button>
+        )}
       </div>
 
       {!initialProduct && (
@@ -241,7 +221,7 @@ export function MissionLauncher({
                 setSeedInput(preset.seeds);
                 setFormError(null);
               }}
-              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-900 transition-colors"
+              className="rounded-full border border-slate-700/80 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300 hover:border-teal-500/50 hover:bg-teal-500/15 hover:text-teal-200 transition-colors cursor-pointer"
             >
               + {preset.label}
             </button>
@@ -252,14 +232,14 @@ export function MissionLauncher({
       {!anyConfigured && (
         <div
           role="alert"
-          className="mt-4 flex flex-wrap items-start justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+          className="mt-4 flex flex-wrap items-start justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200"
         >
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" />
             <div>
-              <p className="font-medium">No LLM provider ready</p>
-              <p className="text-xs text-amber-800 mt-0.5">
-                Add your own browser key in <strong>Settings (BYOK Keys)</strong>, set a key in <code>.env</code>, or start local Ollama (<code>ollama serve</code>). No key yet? Try the zero-key Interactive AI Tutor.
+              <p className="font-medium text-amber-100">No LLM provider ready</p>
+              <p className="text-xs text-amber-200/80 mt-0.5">
+                Add your own browser key in <strong>API Keys</strong> (bottom-left), set a key in <code>.env</code>, or start local Ollama (<code>ollama serve</code>). No key yet? Try the zero-key Interactive AI Tutor.
               </p>
             </div>
           </div>
@@ -268,7 +248,7 @@ export function MissionLauncher({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                className="inline-flex items-center gap-1.5 rounded-md border border-amber-400 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/50 bg-slate-900 px-2.5 py-1 text-xs font-medium text-amber-200 hover:bg-slate-800 cursor-pointer"
               >
                 <KeyRound className="w-3.5 h-3.5" />
                 Add Browser Key
@@ -278,9 +258,9 @@ export function MissionLauncher({
               <button
                 type="button"
                 onClick={() => onOpenWorkflowXRay("tutor")}
-                className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-md bg-teal-500 px-2.5 py-1 text-xs font-semibold text-slate-950 hover:bg-teal-400 cursor-pointer"
               >
-                <GraduationCap className="w-3.5 h-3.5 text-teal-400" />
+                <GraduationCap className="w-3.5 h-3.5" />
                 Launch Zero-Key AI Tutor
               </button>
             )}
@@ -293,7 +273,7 @@ export function MissionLauncher({
           <div>
             <label
               htmlFor="product-name"
-              className="block text-sm font-medium text-slate-800"
+              className="block text-xs font-semibold uppercase tracking-wide text-slate-300"
             >
               Your Product or Market Topic
             </label>
@@ -303,14 +283,14 @@ export function MissionLauncher({
               value={productName}
               onChange={(e) => setProductName(e.target.value)}
               placeholder="e.g., Linear, Figma, AI Incident Triage Desk"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950/90 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
           <div>
             <label
               htmlFor="target-segment"
-              className="block text-sm font-medium text-slate-800"
+              className="block text-xs font-semibold uppercase tracking-wide text-slate-300"
             >
               Target Customer Segment (ICP)
             </label>
@@ -320,7 +300,7 @@ export function MissionLauncher({
               value={segment}
               onChange={(e) => setSegment(e.target.value)}
               placeholder="e.g., B2B SaaS Product & Engineering Teams"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950/90 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
         </div>
@@ -328,9 +308,9 @@ export function MissionLauncher({
         <div>
           <label
             htmlFor="product-description"
-            className="block text-sm font-medium text-slate-800"
+            className="block text-xs font-semibold uppercase tracking-wide text-slate-300"
           >
-            Product Scope & Value Proposition
+            Product Scope &amp; Value Proposition
           </label>
           <textarea
             id="product-description"
@@ -338,7 +318,7 @@ export function MissionLauncher({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe what your product does, key workflows, and what competitive questions you need answered."
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+            className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950/90 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
           />
         </div>
 
@@ -346,7 +326,7 @@ export function MissionLauncher({
           <div className="md:col-span-1">
             <label
               htmlFor="seed-competitors"
-              className="block text-sm font-medium text-slate-800"
+              className="block text-xs font-semibold uppercase tracking-wide text-slate-300"
             >
               Seed Competitors (optional)
             </label>
@@ -356,14 +336,14 @@ export function MissionLauncher({
               value={seedInput}
               onChange={(e) => setSeedInput(e.target.value)}
               placeholder="e.g., Klue, Crayon, Kompyte"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950/90 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
           <div>
             <label
               htmlFor="llm-provider"
-              className="block text-sm font-medium text-slate-800"
+              className="block text-xs font-semibold uppercase tracking-wide text-slate-300"
             >
               LLM Provider
             </label>
@@ -376,7 +356,7 @@ export function MissionLauncher({
                 setOllamaCheck(null);
                 onChangeProvider(next, meta?.default_model || "");
               }}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
               <option value="">Select provider...</option>
               {providers.map((p) => {
@@ -401,11 +381,11 @@ export function MissionLauncher({
           <div>
             <label
               htmlFor="llm-model"
-              className="block text-sm font-medium text-slate-800"
+              className="block text-xs font-semibold uppercase tracking-wide text-slate-300"
             >
               Model
             </label>
-            <div className="mt-1 flex gap-2">
+            <div className="mt-1.5 flex gap-2">
               <input
                 id="llm-model"
                 type="text"
@@ -420,14 +400,14 @@ export function MissionLauncher({
                     ? "Enter Ollama model (e.g. gemma4:12b)"
                     : "Enter or choose model ID"
                 }
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950/90 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
               {selectedProvider === "ollama" && (
                 <button
                   type="button"
                   onClick={() => void verifyOllama(selectedModel)}
                   disabled={checkingOllama || !selectedModel.trim()}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-100 disabled:opacity-50"
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
                 >
                   {checkingOllama ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -445,7 +425,7 @@ export function MissionLauncher({
             {selectedProvider === "ollama" && ollamaCheck && (
               <p
                 className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${
-                  ollamaCheck.available ? "text-emerald-700" : "text-rose-700"
+                  ollamaCheck.available ? "text-emerald-400" : "text-rose-400"
                 }`}
               >
                 {ollamaCheck.available ? (
@@ -465,7 +445,7 @@ export function MissionLauncher({
         </div>
 
         {formError && (
-          <p role="alert" className="text-sm text-rose-700 font-medium">
+          <p role="alert" className="text-sm text-rose-400 font-medium">
             {formError}
           </p>
         )}
@@ -479,7 +459,7 @@ export function MissionLauncher({
               !selectedProviderReady ||
               !selectedModel.trim()
             }
-            className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-teal-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-teal-500/20 hover:bg-teal-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <Play className="w-4 h-4" />
             {isSubmitting ? "Starting Discovery..." : "Run Discovery & HITL Review"}
