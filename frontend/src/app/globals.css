@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #080c14;
+  --foreground: #e2e8f0;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -17,6 +18,29 @@ body {
   color: var(--foreground);
 }
 
+/* Subtle architectural blueprint dot-grid canvas backdrop */
+.bg-blueprint-grid {
+  background-color: #070b12;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.16) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Sleek dark scrollbar for inspector drawers & logs */
+.studio-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.studio-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+.studio-scroll::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.7);
+  border-radius: 9999px;
+}
+.studio-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(45, 212, 191, 0.65);
+}
+
 @page {
   margin: 14mm;
 }
@@ -26,29 +50,13 @@ body {
   .print\:hidden {
     display: none !important;
   }
-  body {
-    background: #ffffff;
+  :root {
+    color-scheme: light;
   }
-}
-
-/* 3D-perspective & animated data-beam helpers for Workflow X-Ray */
-.perspective-stage {
-  perspective: 1400px;
-}
-
-.transform-3d-card {
-  transform-style: preserve-3d;
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 280ms ease,
-    border-color 280ms ease;
-}
-
-.xray-tilt-card {
-  transform: rotateX(4deg) translateZ(0);
-}
-
-.xray-tilt-card:hover {
-  transform: rotateX(0deg) translateY(-3px) translateZ(10px);
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
 }
 
 @keyframes beam-flow {
@@ -63,10 +71,10 @@ body {
 @keyframes xray-pulse-ring {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.35);
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(13, 148, 136, 0);
+    box-shadow: 0 0 0 8px rgba(45, 212, 191, 0);
   }
 }
 
@@ -80,11 +88,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .transform-3d-card,
-  .xray-tilt-card:hover {
-    transform: none;
-    transition: none;
-  }
   .animate-beam-flow,
   .animate-xray-pulse {
     animation: none;

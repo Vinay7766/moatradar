@@ -132,7 +132,7 @@ function SettingsModalDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 print:hidden"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 print:hidden"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isSaving && !isClearing) {
           onClose();
@@ -143,21 +143,21 @@ function SettingsModalDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="byok-settings-title"
-        className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+        className="w-full max-w-xl rounded-xl border border-slate-800 bg-[#0f1623] shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/80">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-teal-500/15 border border-teal-500/35 text-teal-400 flex items-center justify-center">
               <KeyRound className="w-4 h-4" />
             </div>
             <div>
               <h2
                 id="byok-settings-title"
-                className="text-base font-semibold text-slate-900"
+                className="text-base font-semibold text-slate-100"
               >
                 BYOK &amp; Local Ollama Settings
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 Bring your own provider API keys or custom Ollama endpoint
               </p>
             </div>
@@ -167,22 +167,22 @@ function SettingsModalDialog({
             onClick={onClose}
             disabled={isSaving || isClearing}
             aria-label="Close settings modal"
-            className="p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 transition-colors"
+            className="p-1.5 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-          <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-900">
-            <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-emerald-700" />
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto studio-scroll">
+          <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-200">
+            <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-emerald-400" />
             <div>
-              <p className="font-semibold">
+              <p className="font-semibold text-emerald-100">
                 Stored locally in browser only — never sent to server DB
               </p>
-              <p className="mt-0.5 text-emerald-800">
-                Keys are saved in <code>localStorage</code> and sent ephemerally per request via{" "}
-                <code>X-LLM-API-Key</code> / <code>X-Ollama-Base-URL</code> headers. They are never logged or persisted in SQLite.
+              <p className="mt-0.5 text-emerald-200/80">
+                Keys are saved in <code className="text-emerald-100">localStorage</code> and sent ephemerally per request via{" "}
+                <code className="text-emerald-100">X-LLM-API-Key</code> / <code className="text-emerald-100">X-Ollama-Base-URL</code> headers. They are never logged or persisted in SQLite.
               </p>
             </div>
           </div>
@@ -200,12 +200,12 @@ function SettingsModalDialog({
                   <div className="flex items-center justify-between">
                     <label
                       htmlFor={`byok-${provider}`}
-                      className="text-xs font-semibold text-slate-800"
+                      className="text-xs font-semibold text-slate-200"
                     >
                       {meta.label}
                     </label>
                     {hasValue && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400">
                         <CheckCircle2 className="w-3 h-3" />
                         Active in browser
                       </span>
@@ -220,7 +220,7 @@ function SettingsModalDialog({
                         onChange={(e) => updateKey(provider, e.target.value)}
                         placeholder={meta.placeholder}
                         autoComplete="off"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 pr-9 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 pr-9 text-xs font-mono text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                       />
                       <button
                         type="button"
@@ -231,7 +231,7 @@ function SettingsModalDialog({
                           }))
                         }
                         aria-label={isVisible ? `Hide ${provider} key` : `Show ${provider} key`}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 cursor-pointer"
                       >
                         {isVisible ? (
                           <EyeOff className="w-3.5 h-3.5" />
@@ -245,22 +245,22 @@ function SettingsModalDialog({
                         type="button"
                         onClick={() => updateKey(provider, "")}
                         aria-label={`Clear ${provider} key`}
-                        className="p-2 rounded-md border border-slate-200 text-slate-500 hover:text-rose-700 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                        className="p-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-950/60 transition-colors cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500">{meta.hint}</p>
+                  <p className="text-[11px] text-slate-400">{meta.hint}</p>
                 </div>
               );
             })}
           </div>
 
-          <div className="pt-2 border-t border-slate-100 space-y-1">
+          <div className="pt-2 border-t border-slate-800 space-y-1">
             <label
               htmlFor="byok-ollama-url"
-              className="block text-xs font-semibold text-slate-800"
+              className="block text-xs font-semibold text-slate-200"
             >
               Custom Ollama Base URL (optional)
             </label>
@@ -270,25 +270,25 @@ function SettingsModalDialog({
               value={ollamaBaseUrl}
               onChange={(e) => setOllamaBaseUrl(e.target.value)}
               placeholder="http://localhost:11434"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
-            <p className="text-[11px] text-slate-500">
-              Leave empty to use the backend&apos;s default <code>OLLAMA_BASE_URL</code>.
+            <p className="text-[11px] text-slate-400">
+              Leave empty to use the backend&apos;s default <code className="text-slate-300">OLLAMA_BASE_URL</code>.
             </p>
           </div>
 
           {error && (
-            <p role="alert" className="text-xs font-medium text-rose-700">
+            <p role="alert" className="text-xs font-medium text-rose-400">
               {error}
             </p>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800">
             <button
               type="button"
               onClick={() => void handleClear()}
               disabled={isSaving || isClearing}
-              className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 bg-rose-950/40 px-3 py-2 text-xs font-medium text-rose-300 hover:bg-rose-950/70 disabled:opacity-50 cursor-pointer"
             >
               {isClearing ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -303,14 +303,14 @@ function SettingsModalDialog({
                 type="button"
                 onClick={onClose}
                 disabled={isSaving || isClearing}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving || isClearing}
-                className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-2 text-xs font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-teal-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-teal-400 disabled:opacity-50 cursor-pointer"
               >
                 {isSaving ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />

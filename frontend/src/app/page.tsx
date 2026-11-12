@@ -104,6 +104,7 @@ export default function HomePage() {
     "live"
   );
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(true);
   const [showTraceLogs, setShowTraceLogs] = useState(false);
 
@@ -543,7 +544,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-900">
+    <div className="min-h-screen flex bg-[#080c14] text-slate-100 print:bg-white print:text-slate-900">
       <SidebarWorkspaces
         workspaces={workspaces}
         selectedWorkspaceId={selectedWorkspace?.id || null}
@@ -553,12 +554,15 @@ export default function HomePage() {
         onNewMission={resetActiveWorkspaceState}
         onRefresh={loadInitialData}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenWorkflowXRay={(mode) => handleChangeView("xray", mode)}
+        onChangeView={handleChangeView}
         activeView={mainView}
+        hasSelectedWorkspace={Boolean(selectedWorkspace)}
         byokKeyCount={activeByokProviders.length}
         hasCustomOllamaUrl={Boolean(byokConfig.ollamaBaseUrl.trim())}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
       />
 
       <div className="flex-1 min-w-0 flex flex-col">
@@ -578,20 +582,18 @@ export default function HomePage() {
           monitor={workspaceMonitor}
           isCopilotOpen={isCopilotOpen}
           onToggleCopilot={() => setIsCopilotOpen((prev) => !prev)}
-          byokKeyCount={activeByokProviders.length}
-          onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
         />
 
         <main
           className={`flex-1 p-4 md:p-6 space-y-5 w-full mx-auto print:p-0 print:max-w-none print:space-y-0 ${
-            mainView === "xray" ? "max-w-[1440px]" : "max-w-[1400px]"
+            mainView === "xray" ? "max-w-[1560px]" : "max-w-[1440px]"
           }`}
         >
           {bannerError && (
             <div
               role="alert"
-              className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900 print:hidden"
+              className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-4 py-3 text-sm text-rose-200 print:hidden"
             >
               {bannerError}
             </div>
