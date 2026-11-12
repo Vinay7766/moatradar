@@ -1051,3 +1051,121 @@ export const TUTOR_STEPS: TutorStep[] = [
     },
   },
 ];
+
+export interface SourceFileGuide {
+  path: string;
+  role: string;
+  keySymbols: string[];
+  flowSummary: string;
+}
+
+export const SOURCE_FILE_GUIDES: Record<string, SourceFileGuide> = {
+  "backend/app/agents/nodes.py": {
+    path: "backend/app/agents/nodes.py",
+    role: "Core LangGraph node implementations (discovery, HITL, parallel specialist workers, Critic, gap loop, synthesizer, and memory indexing).",
+    keySymbols: [
+      "discovery_node()",
+      "hitl_approval_node()",
+      "specialist_research_node()",
+      "critic_verifier_node()",
+      "targeted_research_node()",
+      "synthesizer_node()",
+      "memory_indexer_node()",
+    ],
+    flowSummary:
+      "Receives IntelligenceState slices, invokes external collectors bounded by Semaphores, enforces structured Pydantic outputs, and emits telemetry events.",
+  },
+  "backend/app/agents/graph.py": {
+    path: "backend/app/agents/graph.py",
+    role: "Compiles the StateGraph topology, wires conditional Critic reflection edges, and attaches AsyncSqliteSaver durable checkpoints.",
+    keySymbols: [
+      "build_intelligence_graph()",
+      "_route_after_critic()",
+      "AsyncSqliteSaver",
+    ],
+    flowSummary:
+      "Defines linear progression START -> discovery -> hitl_approval -> specialist_research -> critic_verifier and routes conditionally to targeted_research or synthesizer.",
+  },
+  "backend/app/agents/state.py": {
+    path: "backend/app/agents/state.py",
+    role: "Shared LangGraph IntelligenceState TypedDict with Annotated reducers for additive citations and parallel specialist findings.",
+    keySymbols: ["IntelligenceState", "operator.add"],
+    flowSummary:
+      "Merges outputs safely from concurrent competitor workers without overwriting earlier evidence or citations.",
+  },
+  "backend/app/agents/diff_engine.py": {
+    path: "backend/app/agents/diff_engine.py",
+    role: "Deterministic snapshot comparison engine detecting pricing shifts, feature additions, and battlecard deltas over time.",
+    keySymbols: ["compute_snapshot_diff()", "DiffSummary", "DiffChangeItem"],
+    flowSummary:
+      "Compares newly synthesized DossierPayload against the prior workspace snapshot stored in SQLite.",
+  },
+  "backend/app/agents/rag_chat.py": {
+    path: "backend/app/agents/rag_chat.py",
+    role: "Grounded Q&A copilot querying workspace-scoped ChromaDB vector chunks for citations and snapshot context.",
+    keySymbols: ["answer_workspace_question()", "retrieve_grounded_chunks()"],
+    flowSummary:
+      "Retrieves top-k evidence filtered strictly by workspace_id before composing cited PM answers.",
+  },
+  "backend/app/tools/web_search.py": {
+    path: "backend/app/tools/web_search.py",
+    role: "Zero-key DuckDuckGo web search adapter returning normalized title, URL, and snippet results.",
+    keySymbols: ["async_search_web()", "SearchHit"],
+    flowSummary:
+      "Provides live external market grounding during discovery and targeted gap re-research loops.",
+  },
+  "backend/app/tools/security.py": {
+    path: "backend/app/tools/security.py",
+    role: "Security boundary utility blocking SSRF private/loopback URLs and stripping prompt-injection control tokens.",
+    keySymbols: ["validate_public_url()", "sanitize_evidence_text()"],
+    flowSummary:
+      "Sanitizes untrusted external HTML/text inside <source_evidence> blocks before LLM prompts see it.",
+  },
+  "backend/app/tools/registry.py": {
+    path: "backend/app/tools/registry.py",
+    role: "Unified collector dispatcher orchestrating web, pricing, Hacker News, Reddit, GitHub, and custom doc lookups.",
+    keySymbols: ["collect_competitor_bundle()", "COLLECTOR_REGISTRY"],
+    flowSummary:
+      "Executes async collectors concurrently with return_exceptions=True for graceful degradation.",
+  },
+  "backend/app/tools/pricing_playwright.py": {
+    path: "backend/app/tools/pricing_playwright.py",
+    role: "Headless Playwright + httpx pricing page extractor with SSRF-validated navigation for JS-rendered SaaS pricing tables.",
+    keySymbols: ["fetch_pricing_page()", "extract_pricing_tiers()"],
+    flowSummary:
+      "Renders dynamic pricing toggles/tiers cleanly when static HTTP scraping misses JavaScript pricing cards.",
+  },
+  "backend/app/tools/community.py": {
+    path: "backend/app/tools/community.py",
+    role: "Zero-key collector pulling real practitioner discussions from Hacker News Algolia, Reddit JSON, and GitHub releases/repos.",
+    keySymbols: ["fetch_hn_discussions()", "fetch_reddit_threads()", "fetch_github_momentum()"],
+    flowSummary:
+      "Supplies raw Voice-of-Customer quotes and engineering release velocity signals.",
+  },
+  "backend/app/schemas/intelligence.py": {
+    path: "backend/app/schemas/intelligence.py",
+    role: "Strict Pydantic contracts governing LLM structured outputs, Critic reports, SWOT battlecards, and exported dossiers.",
+    keySymbols: [
+      "DossierPayload",
+      "CriticReport",
+      "CompetitorCandidate",
+      "DomainFinding",
+    ],
+    flowSummary:
+      "Guarantees UI tables, Opportunity matrices, and Critic audits receive validated, strongly typed JSON.",
+  },
+  "backend/app/services/mission_runner.py": {
+    path: "backend/app/services/mission_runner.py",
+    role: "Async lifecycle manager supervising background mission tasks, SSE event streaming, HITL resume, and stage retry.",
+    keySymbols: ["MissionRunner", "start_mission()", "resume_mission()", "retry_mission()"],
+    flowSummary:
+      "Bridges FastAPI HTTP/SSE routes to LangGraph thread execution while keeping ephemeral BYOK headers off SQLite.",
+  },
+  "backend/app/db/vector_store.py": {
+    path: "backend/app/db/vector_store.py",
+    role: "Persistent ChromaDB wrapper storing and querying dossier sections, verified citations, and uploaded PDF/MD/TXT evidence.",
+    keySymbols: ["DossierVectorStore", "upsert_dossier()", "delete_workspace_vectors()"],
+    flowSummary:
+      "Maintains semantic recall scoped per workspace_id and cleans vectors cleanly on workspace deletion.",
+  },
+};

@@ -1,38 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
-  AlertTriangle,
-  Bot,
+  Box,
   Brain,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock,
-  Code2,
-  Cpu,
-  Database,
-  FileCode2,
-  GitBranch,
   GraduationCap,
   Layers,
-  Loader2,
-  Lock,
-  Network,
   Pause,
   Play,
   RefreshCw,
   RotateCcw,
-  Shield,
   ShieldAlert,
   SkipForward,
   Sparkles,
-  UserCheck,
-  Wrench,
+  Volume2,
+  VolumeX,
   X,
-  XCircle,
-  Zap,
 } from "lucide-react";
 import {
   AGENTIC_CONCEPTS,
@@ -46,6 +32,9 @@ import {
   WorkflowNodeMeta,
 } from "@/data/agenticTutorData";
 import { AgentEvent, MissionRun } from "@/lib/types";
+import { WorkflowFloorplanCanvas } from "./WorkflowFloorplanCanvas";
+import { WorkflowNodeInspector } from "./WorkflowNodeInspector";
+import { WorkflowThreeStage } from "./WorkflowThreeStage";
 
 export interface WorkflowXRayProps {
   run: MissionRun | null;
@@ -119,7 +108,9 @@ function readStringArrayMeta(
   if (!meta) return [];
   const val = meta[key];
   if (!Array.isArray(val)) return [];
-  return val.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return val.filter(
+    (item): item is string => typeof item === "string" && item.trim().length > 0
+  );
 }
 
 function inferRecoveryHint(errorText: string | null): string {
@@ -128,10 +119,10 @@ function inferRecoveryHint(errorText: string | null): string {
   }
   const lower = errorText.toLowerCase();
   if (lower.includes("ollama") || lower.includes("model") || lower.includes("not found")) {
-    return "Check that your Ollama model is pulled locally (or switch provider/model in BYOK Settings) and click Retry Stage.";
+    return "Check that your Ollama model is pulled locally (or switch provider/model in API Keys) and click Retry Stage.";
   }
   if (lower.includes("api key") || lower.includes("401") || lower.includes("403") || lower.includes("unauthorized")) {
-    return "Your provider API key looks invalid or missing. Update it in BYOK Keys and click Retry Stage.";
+    return "Your provider API key looks invalid or missing. Update it in API Keys (bottom-left) and click Retry Stage.";
   }
   if (lower.includes("429") || lower.includes("rate") || lower.includes("timeout") || lower.includes("timed out")) {
     return "Upstream search or provider hit a rate limit/timeout. Retry Stage or skip the blocked competitor to finish synthesis.";
@@ -224,7 +215,6 @@ function buildLiveSnapshot(
     };
   }
 
-  // Derive stage statuses cleanly from authoritative MissionRun status + events
   switch (run.status) {
     case "discovering":
       nodeStatuses.discovery = "running";
@@ -288,11 +278,8 @@ function buildLiveSnapshot(
       const failIdx = order.indexOf(targetFail);
       order.forEach((id, idx) => {
         if (idx < failIdx) {
-          if (id === "targeted_research" && !hasTargetedLoopRun) {
-            nodeStatuses[id] = "idle";
-          } else {
-            nodeStatuses[id] = "completed";
-          }
+          nodeStatuses[id] =
+            id === "targeted_research" && !hasTargetedLoopRun ? "idle" : "completed";
         } else if (idx === failIdx) {
           nodeStatuses[id] = "failed";
         }
@@ -304,7 +291,6 @@ function buildLiveSnapshot(
     }
   }
 
-  // Build parallel per-competitor subtask pills
   const targetCompetitors =
     run.approved_competitors.length > 0
       ? run.approved_competitors
@@ -385,7 +371,6 @@ function buildLiveSnapshot(
     };
   });
 
-  // Determine active node & animated edge for beam flow
   let activeNode: WorkflowNodeId | null = failedNode || lastActiveNode;
   if (run.status === "discovering") activeNode = "discovery";
   else if (run.status === "awaiting_approval") activeNode = "hitl_approval";
@@ -426,188 +411,6 @@ function buildLiveSnapshot(
   };
 }
 
-function statusPillClasses(status: NodeVisualStatus): string {
-  switch (status) {
-    case "running":
-      return "bg-teal-500/20 text-teal-200 border-teal-400/50";
-    case "paused":
-      return "bg-amber-500/20 text-amber-200 border-amber-400/50";
-    case "completed":
-      return "bg-emerald-500/20 text-emerald-200 border-emerald-400/50";
-    case "failed":
-      return "bg-rose-500/25 text-rose-200 border-rose-400/70";
-    case "retrying":
-      return "bg-indigo-500/25 text-indigo-200 border-indigo-400/60";
-    default:
-      return "bg-slate-800/80 text-slate-400 border-slate-700";
-  }
-}
-
-function cardDepthClasses(
-  status: NodeVisualStatus,
-  isSelected: boolean,
-  isConceptHighlighted: boolean
-): string {
-  const ring = isSelected
-    ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-950"
-    : isConceptHighlighted
-      ? "ring-2 ring-amber-400/90 ring-offset-2 ring-offset-slate-950"
-      : "";
-
-  switch (status) {
-    case "running":
-      return `border-teal-400/80 bg-slate-900/95 shadow-[0_14px_34px_-10px_rgba(20,184,166,0.55)] animate-xray-pulse ${ring}`;
-    case "paused":
-      return `border-amber-400/80 bg-slate-900/95 shadow-[0_14px_34px_-10px_rgba(245,158,11,0.45)] ${ring}`;
-    case "completed":
-      return `border-emerald-500/60 bg-slate-900/90 shadow-[0_12px_28px_-12px_rgba(16,185,129,0.38)] ${ring}`;
-    case "failed":
-      return `border-rose-500 bg-rose-950/60 shadow-[0_14px_36px_-8px_rgba(244,63,94,0.65)] ${ring}`;
-    case "retrying":
-      return `border-indigo-400/80 bg-slate-900/95 shadow-[0_14px_34px_-10px_rgba(129,140,248,0.55)] ${ring}`;
-    default:
-      return `border-slate-700/80 bg-slate-900/75 shadow-[0_10px_24px_-12px_rgba(15,23,42,0.8)] ${ring}`;
-  }
-}
-
-function conceptBadgeStyle(
-  accent: string,
-  active: boolean
-): string {
-  if (active) {
-    return "bg-indigo-700 text-white border-indigo-700 shadow-sm";
-  }
-  switch (accent) {
-    case "teal":
-      return "bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100";
-    case "emerald":
-      return "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
-    case "amber":
-      return "bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100";
-    case "indigo":
-      return "bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100";
-    case "rose":
-      return "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100";
-    case "sky":
-      return "bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100";
-    case "violet":
-      return "bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100";
-    default:
-      return "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
-  }
-}
-
-function statusIcon(status: NodeVisualStatus) {
-  switch (status) {
-    case "running":
-      return <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-300 shrink-0" />;
-    case "paused":
-      return <UserCheck className="w-3.5 h-3.5 text-amber-300 shrink-0" />;
-    case "completed":
-      return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />;
-    case "failed":
-      return <XCircle className="w-3.5 h-3.5 text-rose-300 shrink-0" />;
-    case "retrying":
-      return <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-300 shrink-0" />;
-    default:
-      return <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
-  }
-}
-
-function subtaskPillClasses(status: SubtaskStatus): string {
-  switch (status) {
-    case "completed":
-      return "bg-emerald-500/15 border-emerald-400/50 text-emerald-200";
-    case "running":
-      return "bg-teal-500/20 border-teal-400/60 text-teal-100";
-    case "failed":
-      return "bg-rose-500/25 border-rose-400 text-rose-100";
-    default:
-      return "bg-slate-800/90 border-slate-700 text-slate-300";
-  }
-}
-
-function HorizontalDataBeam({
-  active,
-  variant = "normal",
-}: {
-  active: boolean;
-  variant?: "normal" | "loop" | "failed";
-}) {
-  const stroke =
-    variant === "failed"
-      ? "#fb7185"
-      : variant === "loop"
-        ? "#f59e0b"
-        : active
-          ? "#2dd4bf"
-          : "#475569";
-
-  return (
-    <div
-      aria-hidden="true"
-      className="hidden md:flex items-center justify-center w-9 shrink-0"
-    >
-      <svg viewBox="0 0 44 20" className="w-full h-5 overflow-visible">
-        <line
-          x1="2"
-          y1="10"
-          x2="38"
-          y2="10"
-          stroke={stroke}
-          strokeWidth={active ? 2.5 : 1.5}
-          strokeOpacity={active ? 0.95 : 0.45}
-          className={active ? "animate-beam-flow" : ""}
-        />
-        <polygon
-          points="36,5 43,10 36,15"
-          fill={stroke}
-          fillOpacity={active ? 1 : 0.5}
-        />
-      </svg>
-    </div>
-  );
-}
-
-function VerticalStageBeam({
-  active,
-  label,
-}: {
-  active: boolean;
-  label?: string;
-}) {
-  const stroke = active ? "#38bdf8" : "#475569";
-  return (
-    <div
-      aria-hidden="true"
-      className="flex flex-col items-center justify-center py-1"
-    >
-      <svg viewBox="0 0 40 32" className="w-8 h-7 overflow-visible">
-        <line
-          x1="20"
-          y1="2"
-          x2="20"
-          y2="24"
-          stroke={stroke}
-          strokeWidth={active ? 2.5 : 1.5}
-          strokeOpacity={active ? 0.95 : 0.45}
-          className={active ? "animate-beam-flow" : ""}
-        />
-        <polygon
-          points="15,22 20,30 25,22"
-          fill={stroke}
-          fillOpacity={active ? 1 : 0.5}
-        />
-      </svg>
-      {label && (
-        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-          {label}
-        </span>
-      )}
-    </div>
-  );
-}
-
 export function WorkflowXRay({
   run,
   events,
@@ -620,8 +423,11 @@ export function WorkflowXRay({
   const [mode, setMode] = useState<"live" | "tutor">(
     () => defaultMode ?? (run ? "live" : "tutor")
   );
+  const [canvasEngine, setCanvasEngine] = useState<"three" | "floorplan">("three");
   const [tutorStepIndex, setTutorStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<1 | 1.5>(1);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [selectedConceptId, setSelectedConceptId] =
     useState<AgenticConceptId | null>(null);
   const [manualSelectedNode, setManualSelectedNode] =
@@ -629,33 +435,129 @@ export function WorkflowXRay({
   const [tutorRecoveryNotice, setTutorRecoveryNotice] = useState<string | null>(
     null
   );
+  const isPlayingRef = useRef(isPlaying);
+  const tutorStepIndexRef = useRef(tutorStepIndex);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // Auto-advance playback in Preview Tutor mode
   useEffect(() => {
-    if (mode !== "tutor" || !isPlaying) return;
-    const timer = setInterval(() => {
-      setTutorStepIndex((prev) => {
-        if (prev >= TUTOR_STEPS.length - 1) {
-          setIsPlaying(false);
-          return prev;
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    tutorStepIndexRef.current = tutorStepIndex;
+  }, [tutorStepIndex]);
+
+  // Helper that advances one tutor step cleanly without nesting setState inside another updater
+  const advanceOneStepCleanly = useMemo(
+    () => () => {
+      const currentIdx = tutorStepIndexRef.current;
+      if (currentIdx >= TUTOR_STEPS.length - 1) {
+        isPlayingRef.current = false;
+        setIsPlaying(false);
+        return;
+      }
+      const nextIdx = currentIdx + 1;
+      tutorStepIndexRef.current = nextIdx;
+      setTutorStepIndex(nextIdx);
+      const nextStep = TUTOR_STEPS[nextIdx];
+      if (nextStep?.activeNode) {
+        setManualSelectedNode(nextStep.activeNode);
+      }
+    },
+    []
+  );
+
+  // Auto-advance playback in Explainer Tutor mode when voice narration is off.
+  // When voice is active, step advancement waits for utterance completion (onend) so speech is never cut off mid-sentence.
+  useEffect(() => {
+    const speechSupported =
+      typeof window !== "undefined" && "speechSynthesis" in window;
+    if (mode !== "tutor" || !isPlaying || (voiceEnabled && speechSupported)) {
+      return;
+    }
+    const delayMs = playbackSpeed === 1.5 ? 2300 : 3400;
+    const timer = setTimeout(() => {
+      if (!isPlayingRef.current) return;
+      advanceOneStepCleanly();
+    }, delayMs);
+    return () => clearTimeout(timer);
+  }, [mode, isPlaying, voiceEnabled, playbackSpeed, tutorStepIndex, advanceOneStepCleanly]);
+
+  const currentTutorStep = TUTOR_STEPS[tutorStepIndex] ?? TUTOR_STEPS[0];
+
+  // Optional browser Web Speech narration bound strictly to active playback (`isPlaying`):
+  // Pausing or scrubbing while paused never speaks unexpectedly; scrubbing while playing debounces and resumes from the target step.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    let cancelled = false;
+    let startTimer: ReturnType<typeof setTimeout> | null = null;
+    let advanceTimer: ReturnType<typeof setTimeout> | null = null;
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+    let handledEnd = false;
+
+    window.speechSynthesis.cancel();
+    activeUtteranceRef.current = null;
+
+    if (mode === "tutor" && voiceEnabled && isPlaying) {
+      const spokenText = `${currentTutorStep.title}. ${currentTutorStep.narration.whatIsHappening}`;
+      const wordCount = Math.max(1, spokenText.trim().split(/\s+/).length);
+      const rate = playbackSpeed === 1.5 ? 1.25 : 1.0;
+      const watchdogMs = Math.max(6000, Math.round((wordCount / (2.0 * rate)) * 1000) + 3500);
+
+      const finishAndAdvance = (pauseMs: number) => {
+        if (handledEnd || cancelled) return;
+        handledEnd = true;
+        if (watchdogTimer) {
+          clearTimeout(watchdogTimer);
+          watchdogTimer = null;
         }
-        const nextIdx = prev + 1;
-        const nextStep = TUTOR_STEPS[nextIdx];
-        if (nextStep?.activeNode) {
-          setManualSelectedNode(nextStep.activeNode);
-        }
-        return nextIdx;
-      });
-    }, 3400);
-    return () => clearInterval(timer);
-  }, [mode, isPlaying]);
+        if (!isPlayingRef.current) return;
+        advanceTimer = setTimeout(() => {
+          if (cancelled || !isPlayingRef.current) return;
+          advanceOneStepCleanly();
+        }, pauseMs);
+      };
+
+      // 160ms debounce + gap after cancel() prevents Chromium/Edge speech queue stalls and avoids stutter during timeline scrubbing
+      startTimer = setTimeout(() => {
+        if (cancelled || !isPlayingRef.current) return;
+        const utter = new SpeechSynthesisUtterance(spokenText);
+        utter.rate = rate;
+        activeUtteranceRef.current = utter;
+
+        utter.onend = () => finishAndAdvance(450);
+        utter.onerror = (event) => {
+          if (event.error === "canceled" || event.error === "interrupted") return;
+          finishAndAdvance(700);
+        };
+
+        window.speechSynthesis.speak(utter);
+        watchdogTimer = setTimeout(() => finishAndAdvance(250), watchdogMs);
+      }, 160);
+    }
+
+    return () => {
+      cancelled = true;
+      if (startTimer) clearTimeout(startTimer);
+      if (advanceTimer) clearTimeout(advanceTimer);
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      activeUtteranceRef.current = null;
+      window.speechSynthesis.cancel();
+    };
+  }, [
+    mode,
+    voiceEnabled,
+    isPlaying,
+    tutorStepIndex,
+    playbackSpeed,
+    currentTutorStep,
+    advanceOneStepCleanly,
+  ]);
 
   const liveSnapshot = useMemo(
     () => buildLiveSnapshot(run, events),
     [run, events]
   );
-
-  const currentTutorStep = TUTOR_STEPS[tutorStepIndex] ?? TUTOR_STEPS[0];
 
   const activeStatuses: Record<WorkflowNodeId, NodeVisualStatus> =
     mode === "tutor"
@@ -689,6 +591,7 @@ export function WorkflowXRay({
 
   const goToTutorStep = (idx: number) => {
     const clamped = Math.max(0, Math.min(TUTOR_STEPS.length - 1, idx));
+    tutorStepIndexRef.current = clamped;
     setTutorStepIndex(clamped);
     setTutorRecoveryNotice(null);
     const step = TUTOR_STEPS[clamped];
@@ -699,6 +602,7 @@ export function WorkflowXRay({
 
   const handleToggleMode = (nextMode: "live" | "tutor") => {
     setMode(nextMode);
+    isPlayingRef.current = false;
     setIsPlaying(false);
     setTutorRecoveryNotice(null);
     if (nextMode === "tutor") {
@@ -756,202 +660,120 @@ export function WorkflowXRay({
       ? currentTutorStep.sampleTelemetry.recoveryHint || ""
       : liveSnapshot.recoveryHint || "";
 
-  const criticLoopActive =
-    activeStatuses.targeted_research === "running" ||
-    activeStatuses.critic_verifier === "retrying" ||
-    activeEdge === "critic_verifier->targeted_research" ||
-    activeEdge === "targeted_research->critic_verifier";
-
-  const renderNodeCard = (node: WorkflowNodeMeta, wide = false) => {
-    const status = activeStatuses[node.id];
-    const isSelected = effectiveSelectedNode === node.id;
-    const isConceptHighlighted = highlightedNodeIds.has(node.id);
-    const liveCount = liveSnapshot.nodeEvents[node.id].length;
-
-    return (
-      <button
-        key={node.id}
-        type="button"
-        onClick={() => setManualSelectedNode(node.id)}
-        aria-pressed={isSelected}
-        aria-label={`Inspect LangGraph node ${node.id} (${status})`}
-        className={`text-left rounded-xl border p-3.5 transition-all transform-3d-card xray-tilt-card cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-          wide ? "w-full" : "w-full"
-        } ${cardDepthClasses(status, isSelected, isConceptHighlighted)}`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-bold text-cyan-300 font-mono shrink-0">
-                {node.stepNumber}
-              </span>
-              <span className="text-xs font-semibold text-white truncate">
-                {node.title}
-              </span>
-            </div>
-            <p className="mt-0.5 text-[11px] font-mono text-slate-400 truncate">
-              {node.shortLabel}
-            </p>
-          </div>
-
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${statusPillClasses(
-              status
-            )}`}
-          >
-            {statusIcon(status)}
-            {status}
-          </span>
-        </div>
-
-        <p className="mt-2 text-[11px] leading-relaxed text-slate-300 line-clamp-2">
-          {node.role}
-        </p>
-
-        {/* Parallel per-competitor subtask pills inside specialist_research */}
-        {node.id === "specialist_research" && (
-          <div className="mt-2.5 rounded-lg bg-slate-950/75 border border-slate-800 p-2">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-300">
-                <Cpu className="w-3 h-3" />
-                Parallel Sub-Tasks (Semaphore 3)
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                {activeSubtasks.filter((s) => s.status === "completed").length}/
-                {activeSubtasks.length} done
-              </span>
-            </div>
-            {activeSubtasks.length === 0 ? (
-              <p className="text-[11px] text-slate-400">
-                Waiting for approved competitors from HITL gate...
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {activeSubtasks.map((sub) => (
-                  <span
-                    key={sub.competitor}
-                    title={sub.detail}
-                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${subtaskPillClasses(
-                      sub.status
-                    )}`}
-                  >
-                    {sub.status === "running" && (
-                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                    )}
-                    {sub.status === "completed" && (
-                      <CheckCircle2 className="w-2.5 h-2.5" />
-                    )}
-                    {sub.status === "failed" && (
-                      <XCircle className="w-2.5 h-2.5" />
-                    )}
-                    {sub.status === "pending" && <Clock className="w-2.5 h-2.5" />}
-                    <span>{sub.competitor}</span>
-                    {typeof sub.citationsCount === "number" && (
-                      <span className="opacity-75 font-mono text-[10px]">
-                        ({sub.citationsCount})
-                      </span>
-                    )}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1.5">
-          <div className="flex flex-wrap gap-1">
-            {node.conceptIds.slice(0, 2).map((cid) => {
-              const cMeta = AGENTIC_CONCEPTS.find((c) => c.id === cid);
-              return (
-                <span
-                  key={cid}
-                  className="rounded bg-slate-800/90 border border-slate-700/80 px-1.5 py-0.5 text-[10px] text-slate-300"
-                >
-                  {cMeta?.shortTitle ?? cid}
-                </span>
-              );
-            })}
-          </div>
-          {mode === "live" && liveCount > 0 && (
-            <span className="text-[10px] font-mono text-cyan-300">
-              {liveCount} event{liveCount === 1 ? "" : "s"}
-            </span>
-          )}
-        </div>
-      </button>
-    );
-  };
-
   return (
     <div className="space-y-4">
-      {/* Top Mode Bar & Playback Controls */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+      {/* Studio Control Header + Explainer Player + Concept Strip */}
+      <section className="rounded-xl border border-slate-800 bg-[#0f1623] p-4 shadow-xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Network className="w-4 h-4 text-indigo-700" />
-              <h2 className="text-base font-bold text-slate-900">
-                Workflow X-Ray &amp; Agentic AI Tutor
-              </h2>
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-700">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/40 bg-teal-500/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-teal-300">
+                <Box className="w-3.5 h-3.5" />
+                3D Architecture &amp; AI Tutor
+              </span>
+              <span className="text-xs font-medium text-slate-400">
                 {mode === "tutor"
-                  ? "Sample: FlowPulse (Zero-Key Sandbox)"
+                  ? "Guided Walkthrough · Zero API Key"
                   : productName
-                    ? `Live: ${productName}`
+                    ? `Live Trace: ${productName}`
                     : "Live Mission Trace"}
               </span>
             </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Inspect every LangGraph node, prompt contract, guardrail, parallel subtask, and Critic retry loop in real time or guided Tutor mode.
+            <p className="text-xs text-slate-400 mt-1">
+              Orbit the 3D pipeline, inspect Floorplan wires, read exact prompts &amp; mapped backend modules interactively.
             </p>
           </div>
 
-          <div
-            role="group"
-            aria-label="X-Ray mode switcher"
-            className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1"
-          >
-            <button
-              type="button"
-              onClick={() => handleToggleMode("live")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mode === "live"
-                  ? "bg-white text-teal-800 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Engine Switcher: Three.js 3D vs Floorplan 2D */}
+            <div
+              role="group"
+              aria-label="Diagram visualization engine"
+              className="inline-flex rounded-lg border border-slate-800 bg-slate-950 p-1"
             >
-              <Activity className="w-3.5 h-3.5" />
-              Live Mission X-Ray
-              {run && (
-                <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-mono text-teal-800">
-                  {run.status}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToggleMode("tutor")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mode === "tutor"
-                  ? "bg-indigo-700 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
+              <button
+                type="button"
+                onClick={() => setCanvasEngine("three")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  canvasEngine === "three"
+                    ? "bg-slate-800 text-teal-300 border border-slate-700"
+                    : "text-slate-400 hover:text-slate-200 border border-transparent"
+                }`}
+              >
+                <Box className="w-3.5 h-3.5" />
+                3D Orbit
+              </button>
+              <button
+                type="button"
+                onClick={() => setCanvasEngine("floorplan")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  canvasEngine === "floorplan"
+                    ? "bg-slate-800 text-teal-300 border border-slate-700"
+                    : "text-slate-400 hover:text-slate-200 border border-transparent"
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Floorplan 2D
+              </button>
+            </div>
+
+            {/* Mode Switcher: Live vs Zero-Key Tutor */}
+            <div
+              role="group"
+              aria-label="X-Ray mode switcher"
+              className="inline-flex rounded-lg border border-slate-800 bg-slate-950 p-1"
             >
-              <GraduationCap className="w-3.5 h-3.5" />
-              Preview Tutor (No API Key Needed)
-            </button>
+              <button
+                type="button"
+                onClick={() => handleToggleMode("live")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  mode === "live"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "text-slate-400 hover:text-slate-200 border border-transparent"
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                Live Run
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleMode("tutor")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  mode === "tutor"
+                    ? "bg-teal-500 text-slate-950 font-bold"
+                    : "text-slate-400 hover:text-slate-200 border border-transparent"
+                }`}
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                Explainer Tutor
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Preview Tutor Playback Bar + Scrubber */}
+        {/* GitDiagram-Style Explainer Player Bar */}
         {mode === "tutor" && (
-          <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 space-y-2.5">
+          <div className="rounded-xl border border-slate-800 bg-slate-950/90 p-3 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setIsPlaying((p) => !p)}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-800 transition-colors"
+                  onClick={() => {
+                    if (isPlaying) {
+                      isPlayingRef.current = false;
+                      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                        window.speechSynthesis.cancel();
+                      }
+                      setIsPlaying(false);
+                    } else {
+                      if (tutorStepIndex >= TUTOR_STEPS.length - 1) {
+                        goToTutorStep(0);
+                      }
+                      isPlayingRef.current = true;
+                      setIsPlaying(true);
+                    }
+                  }}
+                  className="inline-flex min-w-[144px] items-center justify-center gap-1.5 rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-teal-400 transition-colors cursor-pointer"
                 >
                   {isPlaying ? (
                     <>
@@ -961,138 +783,172 @@ export function WorkflowXRay({
                   ) : (
                     <>
                       <Play className="w-3.5 h-3.5" />
-                      Play
+                      Play Walkthrough
                     </>
                   )}
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
+                    isPlayingRef.current = false;
                     setIsPlaying(false);
                     goToTutorStep(tutorStepIndex - 1);
                   }}
                   disabled={tutorStepIndex === 0}
-                  className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  aria-label="Previous walkthrough step"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
-                  Prev Step
+                  Prev
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
+                    isPlayingRef.current = false;
                     setIsPlaying(false);
                     goToTutorStep(tutorStepIndex + 1);
                   }}
                   disabled={tutorStepIndex >= TUTOR_STEPS.length - 1}
-                  className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  aria-label="Next walkthrough step"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  Next Step
+                  Next
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPlaybackSpeed((s) => (s === 1 ? 1.5 : 1))}
+                  title="Playback speed"
+                  className="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5 text-[11px] font-mono text-teal-300 hover:bg-slate-800 cursor-pointer"
+                >
+                  {playbackSpeed}x
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVoiceEnabled((v) => !v)}
+                  title="Toggle browser voice narration"
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[11px] font-medium cursor-pointer ${
+                    voiceEnabled
+                      ? "border-teal-500/40 bg-teal-500/15 text-teal-300"
+                      : "border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {voiceEnabled ? (
+                    <Volume2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <VolumeX className="w-3.5 h-3.5" />
+                  )}
+                  Voice
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
+                    isPlayingRef.current = false;
                     setIsPlaying(false);
                     goToTutorStep(0);
                   }}
-                  className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  title="Reset walkthrough to step 1"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Reset
                 </button>
               </div>
 
-              <div className="text-xs font-semibold text-indigo-950">
-                Step {tutorStepIndex + 1} / {TUTOR_STEPS.length}:{" "}
-                <span className="font-bold">{currentTutorStep.title}</span>
+              <div className="flex items-center gap-2 text-xs text-slate-200">
+                {isPlaying && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-teal-500/40 bg-teal-500/15 px-2 py-0.5 text-[10px] font-semibold text-teal-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+                    {voiceEnabled ? "Narrating" : "Playing"}
+                  </span>
+                )}
+                <span className="font-mono text-teal-400">
+                  {tutorStepIndex + 1}/{TUTOR_STEPS.length}
+                </span>
+                <span className="font-semibold">{currentTutorStep.title}</span>
               </div>
             </div>
 
-            {/* Step Timeline Scrubber */}
-            <div className="space-y-1.5">
-              <input
-                type="range"
-                aria-label="Tutor walkthrough timeline scrubber"
-                min={0}
-                max={TUTOR_STEPS.length - 1}
-                value={tutorStepIndex}
-                onChange={(e) => {
-                  setIsPlaying(false);
-                  goToTutorStep(Number(e.target.value));
-                }}
-                className="w-full accent-indigo-700 cursor-pointer"
-              />
-              <div className="flex flex-wrap gap-1">
-                {TUTOR_STEPS.map((step, idx) => {
-                  const isCurrent = idx === tutorStepIndex;
-                  return (
-                    <button
-                      key={step.id}
-                      type="button"
-                      onClick={() => {
-                        setIsPlaying(false);
-                        goToTutorStep(idx);
-                      }}
-                      className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-                        isCurrent
-                          ? "bg-indigo-700 text-white"
-                          : idx < tutorStepIndex
-                            ? "bg-indigo-100 text-indigo-900 hover:bg-indigo-200"
-                            : "bg-white text-slate-600 border border-indigo-100 hover:bg-indigo-50"
-                      }`}
-                    >
-                      {step.stageBadge}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Interactive Timeline Scrubber & Chapter Pills (seek smoothly without forcing Pause) */}
+            <input
+              type="range"
+              aria-label="Tutor walkthrough timeline scrubber"
+              min={0}
+              max={TUTOR_STEPS.length - 1}
+              value={tutorStepIndex}
+              onChange={(e) => goToTutorStep(Number(e.target.value))}
+              className="w-full accent-teal-400 cursor-pointer"
+            />
+            <div className="flex flex-wrap gap-1">
+              {TUTOR_STEPS.map((step, idx) => {
+                const isCurrent = idx === tutorStepIndex;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() => goToTutorStep(idx)}
+                    className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors cursor-pointer ${
+                      isCurrent
+                        ? "bg-teal-500 text-slate-950 font-bold"
+                        : idx < tutorStepIndex
+                          ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                          : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200"
+                    }`}
+                  >
+                    {step.stageBadge}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Notice when Live Mode has no active run */}
         {mode === "live" && !run && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-200">
             <span>
-              No live mission is selected yet. Launch a mission from the Dossier Workbench or explore the workflow right now in Zero-Key Preview Tutor mode.
+              No active mission selected. Run a mission from Intelligence Desk or launch the zero-key Explainer Tutor right now.
             </span>
             <button
               type="button"
               onClick={() => handleToggleMode("tutor")}
-              className="inline-flex items-center gap-1 rounded-md bg-indigo-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-800"
+              className="inline-flex items-center gap-1 rounded-md bg-teal-500 px-2.5 py-1 text-xs font-bold text-slate-950 hover:bg-teal-400 cursor-pointer"
             >
               <GraduationCap className="w-3.5 h-3.5" />
-              Switch to Preview Tutor
+              Open Explainer Tutor
             </button>
           </div>
         )}
 
         {tutorRecoveryNotice && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2">
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 text-xs font-medium text-emerald-200 flex items-center justify-between gap-2">
             <span>{tutorRecoveryNotice}</span>
             <button
               type="button"
               onClick={() => setTutorRecoveryNotice(null)}
               aria-label="Dismiss recovery notice"
-              className="text-emerald-700 hover:text-emerald-950"
+              className="text-emerald-300 hover:text-white cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Clickable Agentic AI Concept Badge Strip */}
-        <div className="pt-1">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-              <Brain className="w-3.5 h-3.5 text-indigo-700" />
-              Click an Agentic AI Concept Badge to highlight its nodes &amp; see how it works:
+        {/* Clickable Agentic AI Concept Strip */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+              <Brain className="w-3.5 h-3.5 text-teal-400" />
+              Agentic AI Concepts (click to highlight 3D modules &amp; explain):
             </span>
             {selectedConcept && (
               <button
                 type="button"
                 onClick={() => setSelectedConceptId(null)}
-                className="text-[11px] font-medium text-slate-500 hover:text-slate-800 underline"
+                className="text-[11px] font-medium text-teal-300 hover:underline cursor-pointer"
               >
                 Clear highlight
               </button>
@@ -1107,10 +963,11 @@ export function WorkflowXRay({
                   type="button"
                   aria-pressed={active}
                   onClick={() => handleSelectConcept(concept.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${conceptBadgeStyle(
-                    concept.accentColor,
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
                     active
-                  )}`}
+                      ? "border-teal-400 bg-teal-500 text-slate-950 font-semibold"
+                      : "border-slate-700 bg-slate-900 text-slate-300 hover:border-teal-500/50 hover:text-teal-200"
+                  }`}
                 >
                   <Sparkles className="w-3 h-3 shrink-0" />
                   {concept.shortTitle}
@@ -1120,623 +977,157 @@ export function WorkflowXRay({
           </div>
         </div>
 
-        {/* Interactive Concept Explainer Panel */}
         {selectedConcept && (
-          <div className="rounded-lg border border-indigo-200 bg-slate-50 p-3.5 space-y-2.5">
+          <div className="rounded-lg border border-teal-500/35 bg-slate-950/90 p-3.5 space-y-2.5 text-xs">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-sm font-bold text-slate-100">
                   {selectedConcept.title}
                 </h3>
-                <p className="text-xs text-slate-600">
-                  {selectedConcept.tagline}
-                </p>
+                <p className="text-slate-400">{selectedConcept.tagline}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedConceptId(null)}
                 aria-label="Close concept explainer"
-                className="rounded p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="rounded-md bg-white border border-slate-200 p-2.5">
-                <p className="font-semibold text-slate-800 mb-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-md bg-slate-900/90 border border-slate-800 p-2.5">
+                <p className="font-semibold text-teal-300 mb-1">
                   Plain-English Principle
                 </p>
-                <p className="text-slate-700 leading-relaxed">
+                <p className="text-slate-300 leading-relaxed">
                   {selectedConcept.beginnerExplanation}
                 </p>
               </div>
-              <div className="rounded-md bg-white border border-slate-200 p-2.5">
-                <p className="font-semibold text-indigo-900 mb-1">
+              <div className="rounded-md bg-slate-900/90 border border-slate-800 p-2.5">
+                <p className="font-semibold text-sky-300 mb-1">
                   How MoatRadar Implements It
                 </p>
-                <p className="text-slate-700 leading-relaxed">
+                <p className="text-slate-300 leading-relaxed">
                   {selectedConcept.moatRadarImplementation}
                 </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <pre className="rounded-md bg-slate-900 text-cyan-200 px-3 py-2 text-[11px] font-mono overflow-x-auto flex-1 min-w-[260px]">
-                {selectedConcept.contractSnippet}
-              </pre>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-slate-600">
-                  Jump to node:
-                </span>
-                {selectedConcept.nodeIds.map((nid) => (
-                  <button
-                    key={nid}
-                    type="button"
-                    onClick={() => setManualSelectedNode(nid)}
-                    className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[11px] font-mono text-indigo-800 hover:bg-indigo-50"
-                  >
-                    {nid}
-                  </button>
-                ))}
+                <p className="mt-1.5 font-mono text-[10px] text-teal-300 bg-slate-950 rounded px-2 py-1 border border-slate-800">
+                  {selectedConcept.contractSnippet}
+                </p>
               </div>
             </div>
           </div>
         )}
       </section>
 
-      {/* Failure Localization Banner with 1-Click Recovery */}
+      {/* Failure Diagnostic & 1-Click Recovery Banner */}
       {showFailureBanner && (
         <section
           role="alert"
-          className="rounded-xl border border-rose-300 bg-rose-50 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3"
+          className="rounded-xl border border-rose-500/40 bg-rose-950/40 p-4 space-y-2"
         >
-          <div className="space-y-1 min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0" />
-              <h3 className="text-sm font-bold text-rose-950">
-                Fault Pinpointed in{" "}
-                <span className="font-mono underline">{failureNodeName}</span>
-                {failureCompetitor ? ` (${failureCompetitor})` : ""}
-              </h3>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <ShieldAlert className="w-5 h-5 text-rose-400 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-rose-100">
+                  Workflow Paused at Node:{" "}
+                  <span className="font-mono">{failureNodeName}</span>
+                  {failureCompetitor ? ` (${failureCompetitor})` : ""}
+                </h3>
+                <p className="text-xs text-rose-200/90">{failureMessage}</p>
+                {failureHint && (
+                  <p className="text-xs text-rose-300 font-medium">{failureHint}</p>
+                )}
+              </div>
             </div>
-            <p className="text-xs text-rose-900">{failureMessage}</p>
-            <p className="text-[11px] text-rose-800">{failureHint}</p>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={mode === "live" && (isRetrying || !onRetryMission)}
-              onClick={() => {
-                if (mode === "tutor") {
-                  handleSimulatedTutorRecovery("retry");
-                } else if (onRetryMission) {
-                  void onRetryMission();
-                }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-50 transition-colors"
-            >
-              {isRetrying ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="w-3.5 h-3.5" />
-              )}
-              Retry Stage
-            </button>
-
-            {failureCompetitor && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 disabled={mode === "live" && (isRetrying || !onRetryMission)}
                 onClick={() => {
                   if (mode === "tutor") {
-                    handleSimulatedTutorRecovery("skip");
+                    handleSimulatedTutorRecovery("retry");
                   } else if (onRetryMission) {
-                    void onRetryMission({ skipCompetitors: [failureCompetitor] });
+                    void onRetryMission();
                   }
                 }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-900 hover:bg-rose-100 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50 cursor-pointer"
               >
-                <SkipForward className="w-3.5 h-3.5" />
-                Skip {failureCompetitor} &amp; Retry
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`}
+                />
+                {isRetrying ? "Retrying..." : "1-Click Retry Stage"}
               </button>
-            )}
-          </div>
-        </section>
-      )}
 
-      {/* Main Split: 3D-Perspective Pipeline Canvas + Side Node Inspector */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
-        {/* Left/Center: 3D-Perspective Pipeline Visualizer */}
-        <section className="xl:col-span-8 rounded-xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-4 md:p-5 text-slate-100 shadow-lg perspective-stage overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-800/80">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                LangGraph 3D-Perspective DAG Topology
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-              <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-teal-400" />
-                Running
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                HITL Pause
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                Completed
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-rose-500" />
-                Failed
-              </span>
-            </div>
-          </div>
-
-          {/* Tier 1: START -> discovery -> hitl_approval */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-            <div className="flex items-center justify-center rounded-lg border border-cyan-500/40 bg-cyan-950/50 px-3 py-2 text-[11px] font-mono font-bold text-cyan-300 shrink-0">
-              START
-            </div>
-            <HorizontalDataBeam active={activeEdge === "start->discovery"} />
-            <div className="flex-1 min-w-0">
-              {renderNodeCard(NODE_MAP.discovery)}
-            </div>
-            <HorizontalDataBeam
-              active={
-                activeEdge === "discovery->hitl_approval" ||
-                activeStatuses.discovery === "completed"
-              }
-            />
-            <div className="flex-1 min-w-0">
-              {renderNodeCard(NODE_MAP.hitl_approval)}
-            </div>
-          </div>
-
-          <VerticalStageBeam
-            active={
-              activeEdge === "hitl_approval->specialist_research" ||
-              activeStatuses.specialist_research !== "idle"
-            }
-            label="Command(resume=approved)"
-          />
-
-          {/* Tier 2: specialist_research -> critic_verifier <-> targeted_research */}
-          <div className="rounded-xl border border-slate-800/90 bg-slate-950/40 p-3 space-y-3">
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
-              <div className="lg:w-[44%] min-w-0">
-                {renderNodeCard(NODE_MAP.specialist_research, true)}
-              </div>
-
-              <HorizontalDataBeam
-                active={
-                  activeEdge === "specialist_research->critic_verifier" ||
-                  activeStatuses.critic_verifier !== "idle"
-                }
-              />
-
-              <div className="flex-1 min-w-0">
-                {renderNodeCard(NODE_MAP.critic_verifier)}
-              </div>
-            </div>
-
-            {/* Conditional Retry Loop Arc between critic_verifier and targeted_research */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center pt-1">
-              <div className="lg:col-span-5 flex items-center justify-center">
-                <div className="w-full rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <GitBranch
-                      className={`w-4 h-4 ${
-                        criticLoopActive ? "text-amber-400" : "text-slate-400"
-                      }`}
-                    />
-                    <div>
-                      <p className="text-[11px] font-semibold text-slate-200">
-                        Conditional Reflection Loop
-                      </p>
-                      <p className="text-[10px] font-mono text-slate-400">
-                        _route_after_critic()
-                      </p>
-                    </div>
-                  </div>
-                  <svg
-                    viewBox="0 0 120 34"
-                    aria-hidden="true"
-                    className="w-28 h-8 shrink-0 overflow-visible"
-                  >
-                    <path
-                      d="M 8 24 C 35 2, 85 2, 112 24"
-                      fill="none"
-                      stroke={criticLoopActive ? "#f59e0b" : "#475569"}
-                      strokeWidth={criticLoopActive ? 2.5 : 1.5}
-                      className={criticLoopActive ? "animate-beam-flow" : ""}
-                    />
-                    <path
-                      d="M 112 26 C 85 34, 35 34, 8 26"
-                      fill="none"
-                      stroke={
-                        activeEdge === "targeted_research->critic_verifier"
-                          ? "#38bdf8"
-                          : "#475569"
-                      }
-                      strokeWidth={
-                        activeEdge === "targeted_research->critic_verifier"
-                          ? 2.5
-                          : 1.3
-                      }
-                      className={
-                        activeEdge === "targeted_research->critic_verifier"
-                          ? "animate-beam-flow"
-                          : ""
-                      }
-                    />
-                    <polygon
-                      points="107,18 116,24 107,28"
-                      fill={criticLoopActive ? "#f59e0b" : "#475569"}
-                    />
-                    <polygon
-                      points="13,21 4,26 13,31"
-                      fill={
-                        activeEdge === "targeted_research->critic_verifier"
-                          ? "#38bdf8"
-                          : "#475569"
-                      }
-                    />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="lg:col-span-7">
-                {renderNodeCard(NODE_MAP.targeted_research, true)}
-              </div>
-            </div>
-          </div>
-
-          <VerticalStageBeam
-            active={
-              activeEdge === "critic_verifier->synthesizer" ||
-              activeStatuses.synthesizer !== "idle"
-            }
-            label="Critic passed=True"
-          />
-
-          {/* Tier 3: synthesizer -> memory_indexer -> END */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-            <div className="flex-1 min-w-0">
-              {renderNodeCard(NODE_MAP.synthesizer)}
-            </div>
-            <HorizontalDataBeam
-              active={
-                activeEdge === "synthesizer->memory_indexer" ||
-                activeStatuses.memory_indexer !== "idle"
-              }
-            />
-            <div className="flex-1 min-w-0">
-              {renderNodeCard(NODE_MAP.memory_indexer)}
-            </div>
-            <HorizontalDataBeam
-              active={
-                activeEdge === "memory_indexer->end" ||
-                activeStatuses.memory_indexer === "completed"
-              }
-            />
-            <div className="flex items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-950/50 px-3 py-2 text-[11px] font-mono font-bold text-emerald-300 shrink-0">
-              END
-            </div>
-          </div>
-        </section>
-
-        {/* Right Column: Click-Any-Node Side Inspector */}
-        <aside className="xl:col-span-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4 xl:sticky xl:top-4">
-          <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-indigo-50 border border-indigo-200 text-xs font-bold font-mono text-indigo-800">
-                  {inspectedMeta.stepNumber}
-                </span>
-                <h3 className="text-sm font-bold text-slate-900">
-                  {inspectedMeta.title}
-                </h3>
-              </div>
-              <p className="text-[11px] font-mono text-slate-500 mt-0.5">
-                Node ID: {inspectedMeta.id}
-              </p>
-            </div>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase ${
-                inspectedStatus === "completed"
-                  ? "bg-emerald-100 text-emerald-800"
-                  : inspectedStatus === "failed"
-                    ? "bg-rose-100 text-rose-800"
-                    : inspectedStatus === "paused"
-                      ? "bg-amber-100 text-amber-800"
-                      : inspectedStatus === "running"
-                        ? "bg-teal-100 text-teal-800"
-                        : inspectedStatus === "retrying"
-                          ? "bg-indigo-100 text-indigo-800"
-                          : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {inspectedStatus}
-            </span>
-          </div>
-
-          {/* HITL Shortcut in Live Mode */}
-          {mode === "live" &&
-            inspectedMeta.id === "hitl_approval" &&
-            inspectedStatus === "paused" &&
-            onOpenHitl && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
-                <p className="text-xs font-semibold text-amber-950">
-                  Human-in-the-Loop Approval Required
-                </p>
-                <p className="text-xs text-amber-900">
-                  Graph execution is paused cleanly in SQLite checkpoints. Review and approve competitors to launch parallel specialist research.
-                </p>
-                <button
-                  type="button"
-                  onClick={onOpenHitl}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  Open HITL Approval Panel
-                </button>
-              </div>
-            )}
-
-          {/* Inspector Node Failure Recovery Controls */}
-          {inspectedStatus === "failed" && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 space-y-2">
-              <p className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
-                <ShieldAlert className="w-3.5 h-3.5 text-rose-700" />
-                Stage Failure Details
-              </p>
-              <p className="text-xs text-rose-900">{failureMessage}</p>
-              <div className="flex flex-wrap gap-2 pt-1">
+              {failureCompetitor && (
                 <button
                   type="button"
                   disabled={mode === "live" && (isRetrying || !onRetryMission)}
                   onClick={() => {
                     if (mode === "tutor") {
-                      handleSimulatedTutorRecovery("retry");
+                      handleSimulatedTutorRecovery("skip");
                     } else if (onRetryMission) {
-                      void onRetryMission();
+                      void onRetryMission({
+                        skipCompetitors: [failureCompetitor],
+                      });
                     }
                   }}
-                  className="inline-flex items-center gap-1 rounded-md bg-rose-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-950/60 disabled:opacity-50 cursor-pointer"
                 >
-                  <RefreshCw className="w-3 h-3" />
-                  Retry Stage
+                  <SkipForward className="w-3.5 h-3.5" />
+                  Skip {failureCompetitor} &amp; Retry
                 </button>
-                {failureCompetitor && (
-                  <button
-                    type="button"
-                    disabled={mode === "live" && (isRetrying || !onRetryMission)}
-                    onClick={() => {
-                      if (mode === "tutor") {
-                        handleSimulatedTutorRecovery("skip");
-                      } else if (onRetryMission) {
-                        void onRetryMission({
-                          skipCompetitors: [failureCompetitor],
-                        });
-                      }
-                    }}
-                    className="inline-flex items-center gap-1 rounded-md border border-rose-300 bg-white px-2.5 py-1 text-xs font-semibold text-rose-900 hover:bg-rose-100 disabled:opacity-50"
-                  >
-                    <SkipForward className="w-3 h-3" />
-                    Skip {failureCompetitor} &amp; Retry
-                  </button>
-                )}
-              </div>
+              )}
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* Main Studio Split: Interactive 3D/Floorplan Canvas (8 col) + Tabbed Inspector (4 col) */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+        <section className="xl:col-span-8">
+          {canvasEngine === "three" ? (
+            <WorkflowThreeStage
+              statuses={activeStatuses}
+              selectedNodeId={effectiveSelectedNode}
+              highlightedNodeIds={highlightedNodeIds}
+              activeEdge={activeEdge}
+              subtasks={activeSubtasks}
+              onSelectNode={(id) => setManualSelectedNode(id)}
+              onSwitchToFloorplan={() => setCanvasEngine("floorplan")}
+            />
+          ) : (
+            <WorkflowFloorplanCanvas
+              statuses={activeStatuses}
+              selectedNodeId={effectiveSelectedNode}
+              highlightedNodeIds={highlightedNodeIds}
+              activeEdge={activeEdge}
+              subtasks={activeSubtasks}
+              onSelectNode={(id) => setManualSelectedNode(id)}
+            />
           )}
+        </section>
 
-          {/* Plain-English Narration */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5">
-            <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <Bot className="w-3.5 h-3.5 text-teal-700" />
-              {mode === "tutor" ? "Step Narration" : "What This Stage Does"}
-            </p>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              {mode === "tutor"
-                ? currentTutorStep.narration.whatIsHappening
-                : inspectedMeta.role}
-            </p>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              <strong className="text-slate-800">Why it exists:</strong>{" "}
-              {mode === "tutor"
-                ? currentTutorStep.narration.whyItMatters
-                : inspectedMeta.whyItExists}
-            </p>
-          </div>
-
-          {/* Sanitized Runtime / Sample Telemetry */}
-          <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-            <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-600" />
-              {mode === "tutor"
-                ? "Sample Stage Telemetry"
-                : "Live Sanitized Telemetry"}
-            </p>
-            {mode === "tutor" ? (
-              <div className="space-y-1.5 text-xs text-slate-700">
-                <p>
-                  <strong className="text-slate-900">Inputs:</strong>{" "}
-                  {currentTutorStep.sampleTelemetry.inputsSummary}
-                </p>
-                <p>
-                  <strong className="text-slate-900">Outputs:</strong>{" "}
-                  {currentTutorStep.sampleTelemetry.outputsSummary}
-                </p>
-                <div className="flex flex-wrap gap-2 pt-1 text-[11px] font-mono text-slate-600">
-                  {typeof currentTutorStep.sampleTelemetry.durationMs === "number" && (
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5">
-                      {currentTutorStep.sampleTelemetry.durationMs} ms
-                    </span>
-                  )}
-                  {typeof currentTutorStep.sampleTelemetry.criticScore === "number" && (
-                    <span className="rounded bg-indigo-50 text-indigo-800 px-1.5 py-0.5">
-                      Critic {(currentTutorStep.sampleTelemetry.criticScore * 100).toFixed(0)}%
-                    </span>
-                  )}
-                  {typeof currentTutorStep.sampleTelemetry.iterationCount === "number" && (
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5">
-                      Loop #{currentTutorStep.sampleTelemetry.iterationCount}
-                    </span>
-                  )}
-                </div>
-                {currentTutorStep.sampleTelemetry.diffHeadline && (
-                  <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
-                    {currentTutorStep.sampleTelemetry.diffHeadline}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-1.5 text-xs text-slate-700">
-                <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5">
-                    Events: {liveSnapshot.nodeEvents[inspectedMeta.id].length}
-                  </span>
-                  {typeof liveSnapshot.nodeDurationsMs[inspectedMeta.id] ===
-                    "number" && (
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5">
-                      {liveSnapshot.nodeDurationsMs[inspectedMeta.id]} ms
-                    </span>
-                  )}
-                  {run?.critic_score !== null && run?.critic_score !== undefined && (
-                    <span className="rounded bg-indigo-50 text-indigo-800 px-1.5 py-0.5">
-                      Critic {(run.critic_score * 100).toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-                {liveSnapshot.nodeEvents[inspectedMeta.id].length === 0 ? (
-                  <p className="text-[11px] text-slate-500">
-                    No live events recorded for {inspectedMeta.id} yet.
-                  </p>
-                ) : (
-                  <ul className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                    {liveSnapshot.nodeEvents[inspectedMeta.id]
-                      .slice(-4)
-                      .map((ev) => (
-                        <li
-                          key={ev.id}
-                          className="rounded border border-slate-100 bg-slate-50 px-2 py-1 text-[11px] text-slate-700"
-                        >
-                          <span className="font-mono text-slate-500 mr-1.5">
-                            [{ev.event_type}]
-                          </span>
-                          {ev.message}
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Instructions Given (Prompt Template Summary) */}
-          <div className="rounded-lg border border-slate-200 p-3 space-y-1.5">
-            <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <Wrench className="w-3.5 h-3.5 text-indigo-700" />
-              How Instructions Are Given
-            </p>
-            <p className="text-[11px] text-slate-600">
-              <strong className="text-slate-800">System Role:</strong>{" "}
-              {inspectedMeta.instructionsGiven.systemRole}
-            </p>
-            <p className="text-[11px] text-slate-700 leading-relaxed">
-              {inspectedMeta.instructionsGiven.promptSummary}
-            </p>
-            <div className="flex flex-wrap gap-1 pt-1">
-              {inspectedMeta.instructionsGiven.injectedContext.map((ctx) => (
-                <span
-                  key={ctx}
-                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-700"
-                >
-                  {ctx}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Expected Output Schema */}
-          <div className="rounded-lg border border-slate-200 p-3 space-y-1.5">
-            <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <Code2 className="w-3.5 h-3.5 text-teal-700" />
-              How Output Is Taken ({inspectedMeta.outputContract.schemaName})
-            </p>
-            <ul className="space-y-1">
-              {inspectedMeta.outputContract.fields.map((field) => (
-                <li
-                  key={field}
-                  className="text-[11px] font-mono text-slate-700 bg-slate-50 rounded px-2 py-0.5 border border-slate-100"
-                >
-                  {field}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Active Guardrails */}
-          <div className="rounded-lg border border-slate-200 p-3 space-y-1.5">
-            <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-emerald-700" />
-              Active Guardrails
-            </p>
-            <ul className="space-y-1">
-              {inspectedMeta.activeGuardrails.map((g) => (
-                <li
-                  key={g}
-                  className="flex items-start gap-1.5 text-[11px] text-slate-700"
-                >
-                  <Lock className="w-3 h-3 text-emerald-600 mt-0.5 shrink-0" />
-                  <span>{g}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Concepts & Source Code References */}
-          <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-            <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <FileCode2 className="w-3.5 h-3.5 text-slate-700" />
-              Mapped Concepts &amp; Source Files
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {inspectedMeta.conceptIds.map((cid) => {
-                const cMeta = AGENTIC_CONCEPTS.find((c) => c.id === cid);
-                return (
-                  <button
-                    key={cid}
-                    type="button"
-                    onClick={() => handleSelectConcept(cid)}
-                    className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${conceptBadgeStyle(
-                      cMeta?.accentColor ?? "indigo",
-                      selectedConceptId === cid
-                    )}`}
-                  >
-                    {cMeta?.shortTitle ?? cid}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="space-y-1 pt-1">
-              {inspectedMeta.sourceFiles.map((file) => (
-                <div
-                  key={file}
-                  className="flex items-center gap-1.5 text-[11px] font-mono text-slate-600"
-                >
-                  <Database className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="truncate">{file}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
+        <WorkflowNodeInspector
+          mode={mode}
+          inspectedMeta={inspectedMeta}
+          inspectedStatus={inspectedStatus}
+          currentTutorStep={currentTutorStep}
+          run={run}
+          liveNodeEvents={liveSnapshot.nodeEvents[inspectedMeta.id]}
+          liveDurationMs={liveSnapshot.nodeDurationsMs[inspectedMeta.id]}
+          failureMessage={failureMessage}
+          failureCompetitor={failureCompetitor}
+          isRetrying={isRetrying}
+          selectedConceptId={selectedConceptId}
+          onSelectConcept={handleSelectConcept}
+          onSelectNode={(id) => setManualSelectedNode(id)}
+          onRetryMission={onRetryMission}
+          onSimulatedRecovery={handleSimulatedTutorRecovery}
+          onOpenHitl={onOpenHitl}
+        />
       </div>
     </div>
   );
